@@ -7,6 +7,7 @@ This script:
 3. Classifies objects as LEFT or RIGHT based on position in frame
 4. Alerts when objects are within 1 meter proximity
 5. Displays live camera feed with bounding boxes and labels
+6. Triggers tactile vibrations via TDK API when objects cross threshold
 """
 
 import pyzed.sl as sl
@@ -14,6 +15,136 @@ import cv2
 import numpy as np
 import sys
 import math
+import subprocess
+import os
+import time
+from typing import Optional
+
+class VibrationController:
+    """Controller for TDK tactile vibrations"""
+    
+    def __init__(self):
+        """Initialize the vibration controller"""
+        self.tdk_process: Optional[subprocess.Popen] = None
+        self.tdk_exe_path = self._get_tdk_exe_path()
+        self.region_to_tactor = {
+            'LEFT': 1,      # Tactor 1 for left region
+            'RIGHT': 2,     # Tactor 2 for right region
+        }
+        # Track which objects have already triggered vibrations to avoid repeats
+        self.vibration_triggered = {}
+        self.simulated = True
+    
+    def _get_tdk_exe_path(self) -> str:
+        """Get the path to the TDK executable"""
+        # Try to find the TDK exe relative to the current script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # First try: look in parent directory (Aditya folder)
+        parent_dir = os.path.dirname(base_dir)
+        tdk_path = os.path.join(
+            parent_dir,
+            "to_lab",
+            "to_lab",
+            "to_lab",
+            "TDKAPI_1.0.6.0x64 (2)",
+            "tutorials",
+            "Windows",
+            "C++",
+            "Serial",
+            "TDK",
+            "TActionManagerExample.exe"
+        )
+        
+        if os.path.isfile(tdk_path):
+            return tdk_path
+        
+        # Second try: use absolute path from play_with_vibrations.py
+        tdk_path="C:\\Aditya\\to_lab\\to_lab\\to_lab\\TDKAPI_1.0.6.0.x64 (2)\\TDKAPI_1.0.6.0\\tutorials\\Windows\\C++\\Serial\\TDK\\AdvancedActions.exe"
+        # tdk_path = "C:\\aditya\\to_lab\\to_lab\\to_lab\\TDKAPI_1.0.6.0x64 (2)\\tutorials\\Windows\\C++\\Serial\\TDK\\TActionManagerExample.exe"
+        return tdk_path
+    
+    def start_tdk_process(self) -> bool:
+        """Start the TDK process for vibration control"""
+        if not os.path.isfile(self.tdk_exe_path):
+            self.simulated = True
+            return False
+        
+        try:
+            self.tdk_process = subprocess.Popen(
+                [self.tdk_exe_path],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+            
+            # Wait for process to initialize
+            time.sleep(2)
+            
+            if self.tdk_process.poll() is None:
+                self.simulated = False
+                return True
+            else:
+                self.tdk_process = None
+                self.simulated = True
+                return False
+                
+        except Exception:
+            self.tdk_process = None
+            self.simulated = True
+            return False
+    
+    def trigger_vibration(self, region: str, object_id: int, duration_ms: int = 500) -> bool:
+        """
+        Trigger a vibration for a specific region
+        
+        Args:
+            region: The region (LEFT or RIGHT)
+            object_id: The object ID to track vibrations
+            duration_ms: Duration of vibration in milliseconds
+        """
+        if region not in self.region_to_tactor:
+            return False
+        
+        # Check if we've already vibrated for this object recently
+        current_time = time.time()
+        if object_id in self.vibration_triggered:
+            last_vibration_time = self.vibration_triggered[object_id]
+            # Only vibrate again if 1 second has passed
+            if current_time - last_vibration_time < 1.0:
+                return False
+        
+        tactor_id = self.region_to_tactor[region]
+        actual_vibration = False
+        
+        if self.tdk_process and self.tdk_process.poll() is None:
+            try:
+                command = f"PLAY_TACTOR {tactor_id} {duration_ms}\n"
+                self.tdk_process.stdin.write(command)
+                self.tdk_process.stdin.flush()
+                actual_vibration = True
+            except Exception:
+                self.simulated = True
+                actual_vibration = False
+        else:
+            self.simulated = True
+        
+        # Record that we've vibrated for this object
+        self.vibration_triggered[object_id] = current_time
+        return actual_vibration
+    
+    def cleanup(self):
+        """Clean up and terminate the TDK process"""
+        if self.tdk_process:
+            try:
+                self.tdk_process.terminate()
+                self.tdk_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.tdk_process.kill()
+            except Exception:
+                pass
 
 def main():
     # Create ZED camera object
@@ -22,41 +153,29 @@ def main():
     # Set initialization parameters
     init_params = sl.InitParameters()
     init_params.camera_resolution = sl.RESOLUTION.HD720  # 720p resolution
-    init_params.camera_fps = 30  # 30 FPS
+    init_params.camera_fps = 10  # 30 FPS
     init_params.depth_mode = sl.DEPTH_MODE.NEURAL  # High quality depth mode
     init_params.coordinate_units = sl.UNIT.METER  # Use meters for measurements
     init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
     init_params.sdk_verbose = True
     
     # Open the camera
-    print("Opening ZED Camera...")
     err = zed.open(init_params)
     if err != sl.ERROR_CODE.SUCCESS:
-        print(f"Error opening camera: {repr(err)}")
-        exit(1)
-    
-    print("Camera opened successfully!")
+        raise RuntimeError(f"Error opening camera: {repr(err)}")
     
     # Get camera information
     camera_info = zed.get_camera_information()
-    print(f"Camera Model: {camera_info.camera_model}")
-    print(f"Serial Number: {camera_info.serial_number}")
-    print(f"Firmware: {camera_info.camera_configuration.firmware_version}")
     
     # Enable positional tracking (required for object detection)
-    print("\nEnabling Positional Tracking...")
     tracking_params = sl.PositionalTrackingParameters()
     tracking_params.enable_imu_fusion = True
     err = zed.enable_positional_tracking(tracking_params)
     if err != sl.ERROR_CODE.SUCCESS:
-        print(f"Error enabling tracking: {repr(err)}")
         zed.close()
-        exit(1)
-    
-    print("Positional tracking enabled!")
+        raise RuntimeError(f"Error enabling tracking: {repr(err)}")
     
     # Enable object detection
-    print("\nEnabling Object Detection...")
     obj_detection_params = sl.ObjectDetectionParameters()
     obj_detection_params.enable_tracking = True
     obj_detection_params.enable_segmentation = False  # Set to True for person masks
@@ -64,15 +183,12 @@ def main():
     
     err = zed.enable_object_detection(obj_detection_params)
     if err != sl.ERROR_CODE.SUCCESS:
-        print(f"Error enabling object detection: {repr(err)}")
         zed.close()
-        exit(1)
+        raise RuntimeError(f"Error enabling object detection: {repr(err)}")
     
-    print("Object detection enabled!")
-    print("\n" + "="*70)
-    print("Starting object detection and depth analysis...")
-    print("Press Ctrl+C to stop")
-    print("="*70 + "\n")
+    # Initialize and start vibration controller
+    vibration_controller = VibrationController()
+    vibration_controller.start_tdk_process()
     
     # Runtime parameters for object detection
     obj_runtime_params = sl.ObjectDetectionRuntimeParameters()
@@ -85,7 +201,7 @@ def main():
     objects = sl.Objects()
     
     # Get image dimensions for left/right classification
-    image_size = zed.get_camera_information().camera_configuration.resolution
+    image_size = camera_info.camera_configuration.resolution
     frame_center_x = image_size.width / 2
     
     # Alert threshold in meters
@@ -123,8 +239,6 @@ def main():
                         num_objects = len(objects.object_list)
                         
                         if num_objects > 0:
-                            print(f"\n--- Frame {frame_count} | Detected {num_objects} object(s) ---")
-                            
                             for idx, obj in enumerate(objects.object_list):
                                 # Get object properties
                                 label = obj.label.name
@@ -151,23 +265,16 @@ def main():
                                 else:
                                     side = "UNKNOWN"
                                 
-                                # Check if object is within alert distance
-                                is_alert = distance < ALERT_DISTANCE
-                                alert_status = "⚠️  ALERT!" if is_alert else "OK"
+                                # Check if object is within alert distance and we know the side
+                                is_alert = distance < ALERT_DISTANCE and side in ("LEFT", "RIGHT")
                                 
-                                # Print object information
-                                print(f"\n  Object #{idx + 1} [ID: {object_id}]")
-                                print(f"    Type: {label}")
-                                print(f"    Confidence: {confidence:.1f}%")
-                                print(f"    Position: ({position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f}) meters")
-                                print(f"    Distance: {distance:.2f} meters")
-                                print(f"    Side: {side}")
-                                print(f"    Tracking: {tracking_state}")
-                                print(f"    Status: {alert_status}")
-                                
-                                # Additional alert for close objects
                                 if is_alert:
-                                    print(f"    >>> WARNING: {label} is VERY CLOSE on the {side} ({distance:.2f}m) <<<")
+                                    actual_vibration = vibration_controller.trigger_vibration(side, object_id, duration_ms=500)
+                                    vibration_mode = "HARDWARE" if actual_vibration else "SIMULATED"
+                                    print(
+                                        f"ALERT: {label} [{side}] at {distance:.2f}m "
+                                        f"(confidence {confidence:.1f}%, id {object_id}, vibration={vibration_mode})"
+                                    )
                                 
                                 # Draw bounding box on image
                                 if len(bbox_2d) >= 4:
@@ -225,22 +332,20 @@ def main():
                     break
                 
     except KeyboardInterrupt:
-        print("\n\nStopping detection...")
+        pass
     
     # Cleanup
-    print("\nClosing window...")
     cv2.destroyAllWindows()
     
-    print("Disabling object detection...")
+    vibration_controller.cleanup()
+    
     zed.disable_object_detection()
     
-    print("Disabling positional tracking...")
     zed.disable_positional_tracking()
     
-    print("Closing camera...")
     zed.close()
     
-    print(f"\nProcessed {frame_count} frames. Goodbye!")
+    return frame_count
 
 if __name__ == "__main__":
     main()

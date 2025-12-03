@@ -1,0 +1,6 @@
+alert_id,timestamp,class_name,direction,distance_m,reaction_time_s
+1,2025-12-03T13:43:03,person,RIGHT,0.971,5.798
+2,2025-12-03T13:43:06,person,LEFT,0.841,0.001
+3,2025-12-03T13:43:10,person,LEFT,0.669,0.000
+4,2025-12-03T13:43:13,person,RIGHT,0.835,0.001
+5,2025-12-03T13:43:17,chair,LEFT,0.966,0.000

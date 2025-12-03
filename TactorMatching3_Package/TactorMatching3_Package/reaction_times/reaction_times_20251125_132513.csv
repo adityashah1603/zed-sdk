@@ -1,0 +1,9 @@
+alert_id,timestamp,class_name,direction,distance_m,reaction_time_s
+1,2025-11-25T13:25:33,person,RIGHT,0.632,5.646
+2,2025-11-25T13:25:38,person,RIGHT,0.542,1.122
+3,2025-11-25T13:25:41,person,RIGHT,0.998,0.120
+4,2025-11-25T13:25:44,person,RIGHT,0.977,0.039
+5,2025-11-25T13:25:49,person,RIGHT,0.994,0.111
+6,2025-11-25T13:25:58,person,RIGHT,0.995,0.001
+7,2025-11-25T13:26:12,person,RIGHT,0.987,0.001
+8,2025-11-25T13:26:16,cell phone,RIGHT,0.917,0.110

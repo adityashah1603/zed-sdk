@@ -1,0 +1,3 @@
+alert_id,timestamp,class_name,direction,distance_m,reaction_time_s
+1,2025-12-03T13:41:38,box,RIGHT,0.809,4.725
+2,2025-12-03T13:41:42,box,RIGHT,0.981,0.001
