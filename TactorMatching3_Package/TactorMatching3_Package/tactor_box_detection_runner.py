@@ -212,6 +212,9 @@ def detection_worker(event_queue: Queue, stop_event: Event) -> None:
                     continue
 
                 cls_id = int(det.cls.item()) if hasattr(det.cls, "item") else int(det.cls)
+                # Only detect class 1 (person)
+                if cls_id != 0:
+                    continue
                 class_name = class_map.get(cls_id, f"class_{cls_id}")
 
                 xyxy = det.xyxy[0] if len(det.xyxy.shape) > 1 else det.xyxy
