@@ -1,6 +1,0 @@
-alert_id,timestamp,class_name,direction,distance_m,reaction_time_s
-1,2025-11-25T13:16:20,box,LEFT,1.000,3.125
-2,2025-11-25T13:16:23,box,LEFT,0.999,0.267
-3,2025-11-25T13:16:47,box,LEFT,0.995,0.000
-4,2025-11-25T13:17:37,box,LEFT,0.732,0.000
-5,2025-11-25T13:17:40,box,LEFT,0.644,0.000
