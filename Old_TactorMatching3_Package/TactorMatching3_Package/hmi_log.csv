@@ -1,9 +1,0 @@
-timestamp,participant,direction,distance,expected_key,actual_key,rt_ms,correct
-2025-11-13 14:56:41.106,"P001","left","far","Add","LeftShift",3762,0
-2025-11-13 14:56:44.011,"P001","right","far","Add","LeftShift",2584,0
-2025-11-13 15:14:47.652,"P001","front","far","Add","LeftShift",11154,0
-2025-11-13 15:15:09.386,"P001","front","far","Add","Escape",21434,0
-2025-11-13 15:16:13.561,"P001","left","far","Add","Escape",3939,0
-2025-11-13 15:24:33.288,"P001","right","far","Add","Escape",790,0
-2025-12-11 12:48:29.079,"P001","left","near","Add","LWin",5179,0
-2025-12-11 13:05:16.260,"P001","right","near","Add","OemMinus",474653,0

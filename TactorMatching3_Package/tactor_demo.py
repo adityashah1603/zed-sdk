@@ -27,8 +27,9 @@ Or import functions for your own use: from tactor_demo import trigger_tactor
 
 PARAMETERS:
 -----------
-Direction: left, right, front, rear
-Level: far, mid, near (urgency level)
+Direction: seatback-left, seatback-right, wrist-left, wrist-right
+Level: far, mid, near (optional, default: far)
+Mode: sequential, simultaneous (optional, default: sequential)
 Duration: optional, milliseconds to play pattern continuously
 """
 
@@ -58,15 +59,19 @@ TACTOR_EXE_PATH = Path(__file__).parent / "TactorMatching3.exe"
 # CORE FUNCTION
 # ============================================================================
 
-def trigger_tactor(direction, level, duration_ms=None, verbose=True):
+def trigger_tactor(direction, level=None, mode=None, frequency=None, urgency_timing=False, duration_ms=None, verbose=True):
     """
     Trigger a tactor pattern.
     
     Args:
-        direction (str): Direction of tactile feedback
-                        Values: 'left', 'right', 'front', 'rear'
-        level (str): Urgency level
-                    Values: 'far', 'mid', 'near'
+        direction (str): Direction of tactile feedback (REQUIRED)
+                        Values: 'seatback-left', 'seatback-right', 'wrist-left', 'wrist-right'
+        level (str, optional): Urgency level (default: 'far')
+                              Values: 'far', 'mid', 'near'
+        mode (str, optional): Pattern mode (default: 'sequential')
+                             Values: 'sequential', 'simultaneous'
+        frequency (int, optional): Frequency in Hz (default: 250)
+        urgency_timing (bool, optional): Use urgency timing instead of 107.5ms (default: False)
         duration_ms (int, optional): Duration in milliseconds for continuous play
                                      If None, plays pattern once
         verbose (bool): Print execution details
@@ -75,19 +80,25 @@ def trigger_tactor(direction, level, duration_ms=None, verbose=True):
         bool: True if successful, False if error
     
     Example:
-        trigger_tactor('left', 'near')
-        trigger_tactor('front', 'mid', duration_ms=5000)
+        trigger_tactor('seatback-left')
+        trigger_tactor('wrist-right', level='near', mode='simultaneous')
+        trigger_tactor('seatback-left', level='mid', duration_ms=5000)
     """
     # Validate inputs
-    valid_directions = ['left', 'right', 'front', 'rear']
+    valid_directions = ['seatback-left', 'seatback-right', 'wrist-left', 'wrist-right']
     valid_levels = ['far', 'mid', 'near']
+    valid_modes = ['sequential', 'simultaneous']
     
     if direction.lower() not in valid_directions:
         print(f"❌ ERROR: Invalid direction '{direction}'. Must be one of: {valid_directions}")
         return False
     
-    if level.lower() not in valid_levels:
+    if level and level.lower() not in valid_levels:
         print(f"❌ ERROR: Invalid level '{level}'. Must be one of: {valid_levels}")
+        return False
+    
+    if mode and mode.lower() not in valid_modes:
+        print(f"❌ ERROR: Invalid mode '{mode}'. Must be one of: {valid_modes}")
         return False
     
     # Check if executable exists
@@ -99,18 +110,37 @@ def trigger_tactor(direction, level, duration_ms=None, verbose=True):
     # Build command
     cmd = [
         str(TACTOR_EXE_PATH),
-        '--direction', direction.lower(),
-        '--level', level.lower()
+        '--direction', direction.lower()
     ]
+    
+    if level:
+        cmd.extend(['--level', level.lower()])
+    
+    if mode:
+        cmd.extend(['--mode', mode.lower()])
+    
+    if frequency:
+        cmd.extend(['--frequency', str(frequency)])
+    
+    if urgency_timing:
+        cmd.append('--urgency-timing')
     
     if duration_ms is not None:
         cmd.extend(['--duration', str(duration_ms)])
     
     # Print what we're doing
     if verbose:
-        desc = f"Triggering: {direction.upper()} direction, {level.upper()} urgency"
+        desc = f"Triggering: {direction}"
+        if level:
+            desc += f", level={level}"
+        if mode:
+            desc += f", mode={mode}"
+        if frequency:
+            desc += f", frequency={frequency}Hz"
+        if urgency_timing:
+            desc += ", urgency-timing"
         if duration_ms:
-            desc += f", {duration_ms}ms duration"
+            desc += f", duration={duration_ms}ms"
         print(f"▶️  {desc}")
         print(f"   Command: {' '.join(cmd)}")
     
@@ -161,7 +191,7 @@ def demo_all_combinations():
     print("=" * 70)
     print()
     
-    directions = ['left', 'right', 'front', 'rear']
+    directions = ['seatback-left', 'seatback-right', 'wrist-left', 'wrist-right']
     levels = ['far', 'mid', 'near']
     
     for direction in directions:
@@ -172,10 +202,29 @@ def demo_all_combinations():
     print("Demo complete!")
 
 
+def demo_mode_comparison():
+    """
+    Demonstrate sequential vs simultaneous modes.
+    """
+    print("=" * 70)
+    print("DEMO: Sequential vs Simultaneous Mode")
+    print("=" * 70)
+    print()
+    
+    print("Sequential mode (one by one):")
+    trigger_tactor('seatback-left', mode='sequential')
+    time.sleep(2)
+    
+    print("Simultaneous mode (all at once):")
+    trigger_tactor('seatback-left', mode='simultaneous')
+    time.sleep(2)
+    
+    print("Demo complete!")
+
+
 def demo_collision_scenarios():
     """
     Demonstrate realistic collision warning scenarios.
-    These simulate different types of collision warnings you might encounter.
     """
     print("=" * 70)
     print("DEMO: Realistic Collision Warning Scenarios")
@@ -184,46 +233,28 @@ def demo_collision_scenarios():
     
     scenarios = [
         {
-            'name': 'Vehicle approaching from left (distant)',
-            'direction': 'left',
+            'name': 'Vehicle approaching from seatback left (distant)',
+            'direction': 'seatback-left',
             'level': 'far',
             'description': 'Vehicle is far but approaching from the left side'
         },
         {
-            'name': 'Vehicle approaching from left (close - URGENT)',
-            'direction': 'left',
+            'name': 'Vehicle approaching from seatback left (close - URGENT)',
+            'direction': 'seatback-left',
             'level': 'near',
             'description': 'Vehicle is very close on the left side - immediate action needed!'
         },
         {
-            'name': 'Front collision warning (medium distance)',
-            'direction': 'front',
-            'level': 'mid',
-            'description': 'Object ahead at medium distance - prepare to slow down'
-        },
-        {
-            'name': 'Front collision imminent (CRITICAL)',
-            'direction': 'front',
-            'level': 'near',
-            'description': 'Imminent front collision - brake immediately!'
-        },
-        {
-            'name': 'Vehicle in blind spot (right)',
-            'direction': 'right',
+            'name': 'Vehicle in blind spot (wrist right)',
+            'direction': 'wrist-right',
             'level': 'near',
             'description': 'Vehicle in right blind spot - do not change lanes'
         },
         {
-            'name': 'Rear approach warning',
-            'direction': 'rear',
+            'name': 'Wrist left warning (medium distance)',
+            'direction': 'wrist-left',
             'level': 'mid',
-            'description': 'Vehicle approaching from behind at moderate distance'
-        },
-        {
-            'name': 'Rear collision imminent',
-            'direction': 'rear',
-            'level': 'near',
-            'description': 'Vehicle about to hit from behind - prepare for impact'
+            'description': 'Object detected on left wrist at medium distance'
         }
     ]
     
@@ -239,14 +270,13 @@ def demo_collision_scenarios():
 def demo_urgency_levels():
     """
     Demonstrate the three urgency levels for each direction.
-    This shows how the tactile feedback intensity changes with urgency.
     """
     print("=" * 70)
     print("DEMO: Urgency Levels (Far → Mid → Near)")
     print("=" * 70)
     print()
     
-    directions = ['left', 'right', 'front', 'rear']
+    directions = ['seatback-left', 'seatback-right', 'wrist-left', 'wrist-right']
     levels = ['far', 'mid', 'near']
     
     for direction in directions:
@@ -266,18 +296,17 @@ def demo_urgency_levels():
 def demo_continuous_play():
     """
     Demonstrate continuous play mode with duration parameter.
-    Useful for testing or sustained warnings.
     """
     print("=" * 70)
     print("DEMO: Continuous Play Mode")
     print("=" * 70)
     print()
     
-    print("Playing LEFT-NEAR pattern continuously for 5 seconds...")
-    trigger_tactor('left', 'near', duration_ms=5000)
+    print("Playing SEATBACK-LEFT pattern continuously for 5 seconds...")
+    trigger_tactor('seatback-left', duration_ms=5000)
     
-    print("\nPlaying FRONT-MID pattern continuously for 3 seconds...")
-    trigger_tactor('front', 'mid', duration_ms=3000)
+    print("\nPlaying WRIST-RIGHT pattern continuously for 3 seconds...")
+    trigger_tactor('wrist-right', mode='simultaneous', duration_ms=3000)
     
     print("\nDemo complete!")
 
@@ -297,37 +326,37 @@ def scenario_lane_change_warning():
     print()
     
     # Warning sequence
-    trigger_tactor('right', 'mid')
+    trigger_tactor('wrist-right', level='mid')
     time.sleep(0.5)
-    trigger_tactor('right', 'near')
+    trigger_tactor('wrist-right', level='near')
     time.sleep(0.5)
-    trigger_tactor('right', 'near')
+    trigger_tactor('wrist-right', level='near')
     
     print("✅ Warning delivered: Do not change lanes!")
 
 
-def scenario_forward_collision_sequence():
+def scenario_progressive_warning():
     """
-    Scenario: Progressive warning as vehicle ahead slows down.
+    Scenario: Progressive warning as obstacle approaches.
     """
     print("=" * 70)
-    print("SCENARIO: Forward Collision Warning Sequence")
+    print("SCENARIO: Progressive Warning Sequence")
     print("=" * 70)
-    print("\nSituation: Vehicle ahead is slowing down, distance decreasing")
+    print("\nSituation: Obstacle detected, distance decreasing")
     print()
     
-    print("Stage 1: Vehicle ahead detected (far)...")
-    trigger_tactor('front', 'far')
+    print("Stage 1: Obstacle detected (far)...")
+    trigger_tactor('seatback-left', level='far')
     time.sleep(2)
     
     print("Stage 2: Distance decreasing (mid)...")
-    trigger_tactor('front', 'mid')
+    trigger_tactor('seatback-left', level='mid')
     time.sleep(1.5)
     
-    print("Stage 3: Collision imminent - BRAKE NOW! (near)...")
-    trigger_tactor('front', 'near')
+    print("Stage 3: Collision imminent - ACTION NOW! (near)...")
+    trigger_tactor('seatback-left', level='near')
     time.sleep(1)
-    trigger_tactor('front', 'near')
+    trigger_tactor('seatback-left', level='near')
     
     print("✅ Warning sequence complete!")
 
@@ -343,13 +372,13 @@ def scenario_360_degree_awareness():
     print()
     
     print("Scanning environment...")
-    trigger_tactor('front', 'mid')
+    trigger_tactor('seatback-left', level='mid')
     time.sleep(0.8)
-    trigger_tactor('right', 'far')
+    trigger_tactor('seatback-right', level='far')
     time.sleep(0.8)
-    trigger_tactor('rear', 'far')
+    trigger_tactor('wrist-left', level='far')
     time.sleep(0.8)
-    trigger_tactor('left', 'mid')
+    trigger_tactor('wrist-right', level='mid')
     
     print("\n✅ 360° scan complete - driver now aware of surroundings!")
 
@@ -366,16 +395,17 @@ def show_menu():
     print("\nSelect a demo to run:")
     print()
     print("  1. All Combinations (12 patterns: 4 directions × 3 levels)")
-    print("  2. Collision Warning Scenarios (realistic examples)")
-    print("  3. Urgency Levels Demo (compare far/mid/near for each direction)")
-    print("  4. Continuous Play Mode (patterns with duration)")
+    print("  2. Mode Comparison (sequential vs simultaneous)")
+    print("  3. Collision Warning Scenarios (realistic examples)")
+    print("  4. Urgency Levels Demo (compare far/mid/near for each direction)")
+    print("  5. Continuous Play Mode (patterns with duration)")
     print()
-    print("  5. Scenario: Lane Change Warning")
-    print("  6. Scenario: Forward Collision Sequence")
-    print("  7. Scenario: 360-Degree Awareness")
+    print("  6. Scenario: Lane Change Warning")
+    print("  7. Scenario: Progressive Warning Sequence")
+    print("  8. Scenario: 360-Degree Awareness")
     print()
-    print("  8. Custom - Single Pattern (manual input)")
-    print("  9. Test Connection (quick test)")
+    print("  9. Custom - Single Pattern (manual input)")
+    print("  10. Test Connection (quick test)")
     print()
     print("  0. Exit")
     print()
@@ -385,22 +415,25 @@ def run_custom_pattern():
     """Allow user to manually specify direction and level."""
     print("\n--- Custom Pattern ---")
     
-    direction = input("Enter direction (left/right/front/rear): ").strip().lower()
-    level = input("Enter level (far/mid/near): ").strip().lower()
+    direction = input("Enter direction (seatback-left/seatback-right/wrist-left/wrist-right): ").strip().lower()
+    level = input("Enter level (far/mid/near) or press Enter for default 'far': ").strip().lower()
+    mode = input("Enter mode (sequential/simultaneous) or press Enter for default 'sequential': ").strip().lower()
     duration = input("Enter duration in ms (or press Enter for single play): ").strip()
     
+    level = level if level else None
+    mode = mode if mode else None
     duration_ms = int(duration) if duration else None
     
     print()
-    trigger_tactor(direction, level, duration_ms)
+    trigger_tactor(direction, level, mode, duration_ms=duration_ms)
 
 
 def test_connection():
     """Quick test to verify the setup is working."""
     print("\n--- Connection Test ---")
-    print("Running a quick test pattern (front-mid)...\n")
+    print("Running a quick test pattern (seatback-left)...\n")
     
-    if trigger_tactor('front', 'mid'):
+    if trigger_tactor('seatback-left'):
         print("✅ Connection test successful!")
         print("   Your tactor setup is working correctly.")
     else:
@@ -424,38 +457,40 @@ def main():
         print(f"  {TACTOR_EXE_PATH}")
         print("\nPlease do one of the following:")
         print("  1. Copy TactorMatching3.exe to the same folder as this script")
-        print("  2. Update TACTOR_EXE_PATH in this script (line ~42)")
+        print("  2. Update TACTOR_EXE_PATH in this script (line ~48)")
         print("\nAlso ensure all required DLLs and haptics.config.json are present.")
         print("See the SETUP REQUIREMENTS section at the top of this script.")
         sys.exit(1)
     
     while True:
         show_menu()
-        choice = input("Enter your choice (0-9): ").strip()
+        choice = input("Enter your choice (0-10): ").strip()
         
         if choice == '1':
             demo_all_combinations()
         elif choice == '2':
-            demo_collision_scenarios()
+            demo_mode_comparison()
         elif choice == '3':
-            demo_urgency_levels()
+            demo_collision_scenarios()
         elif choice == '4':
-            demo_continuous_play()
+            demo_urgency_levels()
         elif choice == '5':
-            scenario_lane_change_warning()
+            demo_continuous_play()
         elif choice == '6':
-            scenario_forward_collision_sequence()
+            scenario_lane_change_warning()
         elif choice == '7':
-            scenario_360_degree_awareness()
+            scenario_progressive_warning()
         elif choice == '8':
-            run_custom_pattern()
+            scenario_360_degree_awareness()
         elif choice == '9':
+            run_custom_pattern()
+        elif choice == '10':
             test_connection()
         elif choice == '0':
             print("\n👋 Goodbye!")
             break
         else:
-            print("\n❌ Invalid choice. Please enter a number between 0-9.")
+            print("\n❌ Invalid choice. Please enter a number between 0-10.")
         
         # Pause before showing menu again
         input("\nPress Enter to continue...")
@@ -472,25 +507,31 @@ def example_usage():
     # Import the trigger function
     from tactor_demo import trigger_tactor
     
-    # Example 1: Simple trigger
-    trigger_tactor('left', 'near')
+    # Example 1: Simple trigger (only direction - uses all defaults)
+    trigger_tactor('seatback-left')
     
-    # Example 2: Continuous play for 5 seconds
-    trigger_tactor('front', 'mid', duration_ms=5000)
+    # Example 2: With level
+    trigger_tactor('wrist-right', level='near')
     
-    # Example 3: Sequence of warnings
+    # Example 3: With mode
+    trigger_tactor('seatback-left', mode='simultaneous')
+    
+    # Example 4: Continuous play for 5 seconds
+    trigger_tactor('wrist-right', duration_ms=5000)
+    
+    # Example 5: Sequence of warnings
     for level in ['far', 'mid', 'near']:
-        trigger_tactor('front', level)
+        trigger_tactor('seatback-left', level=level)
         time.sleep(1)
     
-    # Example 4: Conditional logic
+    # Example 6: Conditional logic
     collision_distance = 10  # meters
     if collision_distance < 5:
-        trigger_tactor('front', 'near')
+        trigger_tactor('seatback-left', level='near')
     elif collision_distance < 15:
-        trigger_tactor('front', 'mid')
+        trigger_tactor('seatback-left', level='mid')
     else:
-        trigger_tactor('front', 'far')
+        trigger_tactor('seatback-left', level='far')
 
 
 # ============================================================================
@@ -500,4 +541,3 @@ def example_usage():
 if __name__ == '__main__':
     # If run directly, show interactive menu
     main()
-

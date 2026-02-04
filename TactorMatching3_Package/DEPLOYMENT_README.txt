@@ -42,6 +42,7 @@ REQUIRED FILES:
 
 Tactor Hardware DLLs (required if using real tactors):
 ✓ TactorInterface.dll
+✓ TActionManager.dll
 ✓ eai_common.dll
 ✓ eai_serial.dll
 ✓ eai_winusb.dll

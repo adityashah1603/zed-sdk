@@ -55,8 +55,8 @@ TACTOR_POSITION = "seatback"
 # Audio: which AI voice and prompt type
 # AI_VOICE: "advisor", "copilot", or "guardian"
 # AUDIO_TYPE: "action" or "why"
-AI_VOICE = "advisor"
-AUDIO_TYPE = "action"
+AI_VOICE = "copilot"
+AUDIO_TYPE = "why"
 
 # Maps AI_VOICE -> (folder_name, file_prefix)
 AI_VOICE_CONFIG = {
