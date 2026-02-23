@@ -6,7 +6,7 @@ This script launches two independent threads:
    alert events when an object is detected within 1 meter on either side.
 2. Haptics thread – receives alert events, triggers `TactorMatching3.exe`, plays
    audio alerts (left/right), and records the user's reaction time (press Enter
-   when the vibration is felt).
+   the left/right arrow key when the vibration is felt).
 
 Outputs:
     - Reaction logs stored in `reaction_times/` alongside this script.
@@ -25,6 +25,13 @@ from typing import Any, Dict, Optional, Set, Tuple, List
 import cv2
 import numpy as np
 import pyzed.sl as sl
+
+try:
+    import msvcrt  # Windows-only; used for arrow-key reaction capture
+except ImportError as import_error:
+    raise ImportError(
+        "This script requires Windows (msvcrt) for arrow-key reaction capture."
+    ) from import_error
 
 try:
     from ultralytics import YOLO
@@ -57,6 +64,10 @@ TACTOR_POSITION = "seatback"
 # AUDIO_TYPE: "action" or "why"
 AI_VOICE = "copilot"
 AUDIO_TYPE = "why"
+
+# Delay (in seconds) between when an alert event is generated and when
+# the audio prompt is played. The tactor (haptic) is triggered immediately.
+ALERT_AUDIO_DELAY_S = 2
 
 # Maps AI_VOICE -> (folder_name, file_prefix)
 AI_VOICE_CONFIG = {
@@ -189,6 +200,27 @@ def append_reaction_row(
                 f"{reaction_time_s:.3f}",
             ]
         )
+
+
+def wait_for_direction_arrow(direction: str) -> None:
+    """
+    Block until the user presses the arrow key matching direction.
+    LEFT  -> Left Arrow
+    RIGHT -> Right Arrow
+    """
+    direction = direction.upper()
+    if direction not in {"LEFT", "RIGHT"}:
+        raise ValueError(f"Unsupported direction: {direction}")
+
+    # Arrow keys on Windows arrive as a two-character sequence:
+    # prefix: '\x00' or '\xe0', then code: 'K' (left), 'M' (right)
+    expected = "K" if direction == "LEFT" else "M"
+    while True:
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):
+            key = msvcrt.getwch()
+            if key == expected:
+                return
 
 
 # ----------------------------
@@ -432,23 +464,28 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
         alert_id = alert["alert_id"]
         distance_m = alert["distance_m"]
 
-        # Play audio alert
-        play_audio(direction)
-        
-        # Trigger tactor (haptic feedback)
+        # Trigger tactor (haptic feedback) immediately
         return_code = trigger_tactor(direction)
         start_time = time.time()
+
+        # Optional delay before playing audio prompt
+        if ALERT_AUDIO_DELAY_S > 0:
+            time.sleep(ALERT_AUDIO_DELAY_S)
+
+        # Play audio alert (possibly delayed relative to tactor)
+        play_audio(direction)
 
         if return_code != 0:
             print(f"[HAPTICS][WARN] Skipping reaction logging for alert {alert_id}")
             continue
 
         try:
-            input_msg = (
-                f"[HAPTICS] Alert #{alert_id} ({class_name} {direction}) fired."
-                " Press Enter once you respond..."
+            arrow_name = "LEFT ARROW" if direction.upper() == "LEFT" else "RIGHT ARROW"
+            print(
+                f"[HAPTICS] Alert #{alert_id} ({class_name} {direction}) fired. "
+                f"Press {arrow_name} once you respond..."
             )
-            input(input_msg)
+            wait_for_direction_arrow(direction)
         except KeyboardInterrupt:
             print("[HAPTICS] Interrupted during reaction capture.")
             stop_event.set()
