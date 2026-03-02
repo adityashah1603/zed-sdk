@@ -58,26 +58,24 @@ REACTION_LOG_DIR = os.path.join(BASE_DIR, "reaction_times")
 
 # Tactor placement: "seatback" or "wrist" -> produces e.g. seatback-left, wrist-right
 TACTOR_POSITION = "seatback"
-
-# Audio: which AI voice and prompt type
-# AI_VOICE: "advisor", "copilot", or "guardian"
-# AUDIO_TYPE: "action" or "why"
-AI_VOICE = "copilot"
-AUDIO_TYPE = "why"
+# If True, flip LEFT/RIGHT for haptic output:
+#   - obstacle on LEFT  -> vibrate RIGHT
+#   - obstacle on RIGHT -> vibrate LEFT
+REVERSE_HAPTIC_SIDES = False
+ 
+# Audio mode: which set of sounds to use for alerts.
+# AUDIO_MODE: "steer", "pedestrian", or "beep"
+# - "steer": uses Audio_Files/steer/Steer_left.mp3 or Steer_right.mp3
+# - "pedestrian": uses Audio_Files/pedestrian/Pedestrian_left.mp3 or Pedestrian_right.mp3
+# - "beep": uses Audio_Files/beep/beep.mp3 for both left and right
+AUDIO_MODE = "pedestrian"
 
 # Delay (in seconds) between when an alert event is generated and when
 # the audio prompt is played. The tactor (haptic) is triggered immediately.
-ALERT_AUDIO_DELAY_S = 2
-
-# Maps AI_VOICE -> (folder_name, file_prefix)
-AI_VOICE_CONFIG = {
-    "advisor": ("Advisor AI", "Advisor"),
-    "copilot": ("Co-pilot AI", "Copilot"),
-    "guardian": ("Guardian AI", "Guardian"),
-}
+ALERT_AUDIO_DELAY_S = 1.6
 
 CONFIDENCE_THRESHOLD = 0.3
-ALERT_DISTANCE_METERS = 1.0
+ALERT_DISTANCE_METERS = 1.6
 # Maximum distance (pixels) to match detections to tracked objects
 TRACKING_MAX_DISTANCE = 100
 
@@ -114,7 +112,13 @@ def trigger_tactor(direction: str) -> int:
         print(f"[TACTOR][WARN] Executable not found: {TACTOR_EXE_PATH}")
         return -1
     position = TACTOR_POSITION.lower()
-    side = "left" if direction.upper() == "LEFT" else "right"
+
+    # Optionally flip the logical LEFT/RIGHT coming from detection
+    dir_up = direction.upper()
+    if REVERSE_HAPTIC_SIDES:
+        dir_up = "LEFT" if dir_up == "RIGHT" else "RIGHT"
+
+    side = "left" if dir_up == "LEFT" else "right"
     full_direction = f"{position}-{side}"
     print(f"[TACTOR] Triggering {full_direction}")
     result = subprocess.run(
@@ -128,19 +132,35 @@ def trigger_tactor(direction: str) -> int:
 
 def play_audio(direction: str) -> bool:
     """
-    Play AI audio file based on direction (LEFT or RIGHT).
-    Uses AI_VOICE (advisor/copilot/guardian) and AUDIO_TYPE (action/why).
+    Play audio file based on direction (LEFT or RIGHT) and AUDIO_MODE.
+    AUDIO_MODE can be:
+      - "steer":      steer/Steer_left.mp3 or steer/Steer_right.mp3
+      - "pedestrian": pedestrian/Pedestrian_left.mp3 or pedestrian/Pedestrian_right.mp3
+      - "beep":       beep/beep.mp3 for both directions
     Returns True if audio was played successfully, False otherwise.
     """
-    voice = AI_VOICE.lower()
-    if voice not in AI_VOICE_CONFIG:
-        print(f"[AUDIO][WARN] Unknown AI_VOICE '{AI_VOICE}'. Use: advisor, copilot, guardian.")
+    mode = AUDIO_MODE.lower()
+
+    if mode == "steer":
+        folder = "steer"
+        base_name = "Steer"
+        side = "left" if direction.upper() == "RIGHT" else "right"
+        filename = f"{base_name}_{side}.mp3"
+    elif mode == "pedestrian":
+        folder = "pedestrian"
+        base_name = "Pedestrian"
+        side = "left" if direction.upper() == "LEFT" else "right"
+        filename = f"{base_name}_{side}.mp3"
+    elif mode == "beep":
+        folder = "beep"
+        base_name = "Beep"
+        side = "left" if direction.upper() == "LEFT" else "right"
+        filename = f"{base_name}_{side}.mp3"
+    else:
+        print(f"[AUDIO][WARN] Unknown AUDIO_MODE '{AUDIO_MODE}'. Use: steer, pedestrian, or beep.")
         return False
-    folder_name, file_prefix = AI_VOICE_CONFIG[voice]
-    audio_dir = os.path.join(BASE_DIR, "Audio_Files", folder_name)
-    side = "Left" if direction.upper() == "LEFT" else "Right"
-    prompt_type = "Action" if AUDIO_TYPE.lower() == "action" else "Why"
-    filename = f"{file_prefix}_{side}_{prompt_type}.mp3"
+
+    audio_dir = os.path.join(BASE_DIR, "Audio_Files", folder)
     audio_path = os.path.join(audio_dir, filename)
 
     if not os.path.isfile(audio_path):
@@ -150,7 +170,7 @@ def play_audio(direction: str) -> bool:
     try:
         pygame.mixer.music.load(audio_path)
         pygame.mixer.music.play()
-        print(f"[AUDIO] Playing {direction} ({prompt_type}): {filename}")
+        print(f"[AUDIO] Playing mode={AUDIO_MODE}, direction={direction}: {filename}")
         return True
     except Exception as e:
         print(f"[AUDIO][ERROR] Failed to play audio: {e}")
@@ -176,7 +196,15 @@ def write_reaction_header(csv_path: str) -> None:
     with open(csv_path, "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(
-            ["alert_id", "timestamp", "class_name", "direction", "distance_m", "reaction_time_s"]
+            [
+                "alert_id",
+                "timestamp",
+                "class_name",
+                "direction",
+                "distance_m",
+                "reaction_time_s",
+                "key_pressed",
+            ]
         )
 
 
@@ -187,6 +215,7 @@ def append_reaction_row(
     direction: str,
     distance_m: float,
     reaction_time_s: float,
+    key_pressed: str,
 ) -> None:
     with open(csv_path, "a", newline="") as csv_file:
         writer = csv.writer(csv_file)
@@ -198,29 +227,36 @@ def append_reaction_row(
                 direction.upper(), 
                 f"{distance_m:.3f}",
                 f"{reaction_time_s:.3f}",
+                key_pressed.upper(),
             ]
         )
 
 
-def wait_for_direction_arrow(direction: str) -> None:
+def play_audio_with_delay(direction: str, delay_s: float) -> None:
     """
-    Block until the user presses the arrow key matching direction.
-    LEFT  -> Left Arrow
-    RIGHT -> Right Arrow
+    Play audio after an optional non-blocking delay, so we can trigger
+    haptics and schedule audio "together" but start playback slightly later.
     """
-    direction = direction.upper()
-    if direction not in {"LEFT", "RIGHT"}:
-        raise ValueError(f"Unsupported direction: {direction}")
+    if delay_s > 0:
+        time.sleep(delay_s)
+    play_audio(direction)
 
+
+def wait_for_any_arrow() -> str:
+    """
+    Block until the user presses either the Left or Right Arrow.
+    Returns "LEFT" or "RIGHT" based on the key actually pressed.
+    """
     # Arrow keys on Windows arrive as a two-character sequence:
     # prefix: '\x00' or '\xe0', then code: 'K' (left), 'M' (right)
-    expected = "K" if direction == "LEFT" else "M"
     while True:
         ch = msvcrt.getwch()
         if ch in ("\x00", "\xe0"):
             key = msvcrt.getwch()
-            if key == expected:
-                return
+            if key == "K":
+                return "LEFT"
+            if key == "M":
+                return "RIGHT"
 
 
 # ----------------------------
@@ -462,39 +498,50 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
         direction = alert["direction"]
         class_name = alert["class_name"]
         alert_id = alert["alert_id"]
+
         distance_m = alert["distance_m"]
 
-        # Trigger tactor (haptic feedback) immediately
-        return_code = trigger_tactor(direction)
+        # Record time from when we initiate haptics/audio to user reaction
         start_time = time.time()
 
-        # Optional delay before playing audio prompt
-        if ALERT_AUDIO_DELAY_S > 0:
-            time.sleep(ALERT_AUDIO_DELAY_S)
+        # Start tactor and audio in their own threads so they run "together"
+        def _tactor_thread() -> None:
+            rc = trigger_tactor(direction)
+            if rc != 0:
+                print(f"[HAPTICS][WARN] Tactor command for alert {alert_id} exited with code {rc}")
 
-        # Play audio alert (possibly delayed relative to tactor)
-        play_audio(direction)
+        Thread(target=_tactor_thread, daemon=True).start()
+        Thread(
+            target=play_audio_with_delay,
+            args=(direction, ALERT_AUDIO_DELAY_S),
+            daemon=True,
+        ).start()
 
-        if return_code != 0:
-            print(f"[HAPTICS][WARN] Skipping reaction logging for alert {alert_id}")
-            continue
 
         try:
-            arrow_name = "LEFT ARROW" if direction.upper() == "LEFT" else "RIGHT ARROW"
             print(
                 f"[HAPTICS] Alert #{alert_id} ({class_name} {direction}) fired. "
-                f"Press {arrow_name} once you respond..."
+                "Press LEFT or RIGHT ARROW once you respond..."
             )
-            wait_for_direction_arrow(direction)
+            key_pressed = wait_for_any_arrow()
         except KeyboardInterrupt:
             print("[HAPTICS] Interrupted during reaction capture.")
             stop_event.set()
             break
 
         reaction_time = time.time() - start_time
-        append_reaction_row(csv_path, alert_id, class_name, direction, distance_m, reaction_time)
+        append_reaction_row(
+            csv_path,
+            alert_id,
+            class_name,
+            direction,
+            distance_m,
+            reaction_time,
+            key_pressed,
+        )
         print(
-            f"[HAPTICS][REACTION] Alert #{alert_id} {direction} reaction time: {reaction_time:.3f}s"
+            f"[HAPTICS][REACTION] Alert #{alert_id} {direction} "
+            f"reaction time: {reaction_time:.3f}s (key: {key_pressed})"
         )
 
     print("[HAPTICS] Exiting.")
@@ -505,21 +552,27 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
 # ----------------------------
 def main() -> int:
     # Verify audio files exist (warn if not, but don't fail)
-    voice = AI_VOICE.lower()
-    if voice in AI_VOICE_CONFIG:
-        folder_name, file_prefix = AI_VOICE_CONFIG[voice]
-        audio_dir = os.path.join(BASE_DIR, "Audio_Files", folder_name)
-        prompt_suffix = "Action" if AUDIO_TYPE.lower() == "action" else "Why"
-        audio_left = os.path.join(audio_dir, f"{file_prefix}_Left_{prompt_suffix}.mp3")
-        audio_right = os.path.join(audio_dir, f"{file_prefix}_Right_{prompt_suffix}.mp3")
-        if not os.path.isfile(audio_left):
-            print(f"[WARN] Left audio file not found: {audio_left}")
-            print("[WARN] Audio alerts will be disabled for LEFT direction.")
-        if not os.path.isfile(audio_right):
-            print(f"[WARN] Right audio file not found: {audio_right}")
-            print("[WARN] Audio alerts will be disabled for RIGHT direction.")
+    mode = AUDIO_MODE.lower()
+    base_audio_dir = os.path.join(BASE_DIR, "Audio_Files")
+
+    if mode == "steer":
+        audio_left = os.path.join(base_audio_dir, "steer", "Steer_left.mp3")
+        audio_right = os.path.join(base_audio_dir, "steer", "Steer_right.mp3")
+    elif mode == "pedestrian":
+        audio_left = os.path.join(base_audio_dir, "pedestrian", "Pedestrian_left.mp3")
+        audio_right = os.path.join(base_audio_dir, "pedestrian", "Pedestrian_right.mp3")
+    elif mode == "beep":
+        audio_left = audio_right = os.path.join(base_audio_dir, "beep", "beep.mp3")
     else:
-        print(f"[WARN] Unknown AI_VOICE '{AI_VOICE}'. Use: advisor, copilot, guardian.")
+        print(f"[WARN] Unknown AUDIO_MODE '{AUDIO_MODE}'. Use: steer, pedestrian, or beep.")
+        audio_left = audio_right = None
+
+    if audio_left and not os.path.isfile(audio_left):
+        print(f"[WARN] Left audio file not found: {audio_left}")
+        print("[WARN] Audio alerts will be disabled for LEFT direction.")
+    if audio_right and not os.path.isfile(audio_right):
+        print(f"[WARN] Right audio file not found: {audio_right}")
+        print("[WARN] Audio alerts will be disabled for RIGHT direction.")
     
     event_queue: Queue = Queue()
     stop_event: Event = Event()

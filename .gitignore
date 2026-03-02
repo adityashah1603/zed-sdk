@@ -1,3 +1,9 @@
+### MY IGNORES
+
+TactorMatching3_Package/reaction_times/
+./yolov8n.pt
+
+
 ### C ###
 # Prerequisites
 *.d
