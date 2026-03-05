@@ -57,7 +57,7 @@ TACTOR_EXE_PATH = os.path.join(BASE_DIR, "TactorMatching3.exe")
 REACTION_LOG_DIR = os.path.join(BASE_DIR, "reaction_times")
 
 # Tactor placement: "seatback" or "wrist" -> produces e.g. seatback-left, wrist-right
-TACTOR_POSITION = "seatback"
+TACTOR_POSITION = "seatbak"
 # If True, flip LEFT/RIGHT for haptic output:
 #   - obstacle on LEFT  -> vibrate RIGHT
 #   - obstacle on RIGHT -> vibrate LEFT
@@ -154,7 +154,8 @@ def play_audio(direction: str) -> bool:
     elif mode == "beep":
         folder = "beep"
         base_name = "Beep"
-        side = "left" if direction.upper() == "LEFT" else "right"
+        # PICK ACCORDING TO USE CASE, change side to left or right depends what sound you want
+        side = "right" #if direction.upper() == "LEFT" else "right"
         filename = f"{base_name}_{side}.mp3"
     else:
         print(f"[AUDIO][WARN] Unknown AUDIO_MODE '{AUDIO_MODE}'. Use: steer, pedestrian, or beep.")
