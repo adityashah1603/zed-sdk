@@ -57,17 +57,13 @@ TACTOR_EXE_PATH = os.path.join(BASE_DIR, "TactorMatching3.exe")
 REACTION_LOG_DIR = os.path.join(BASE_DIR, "reaction_times")
 
 # Tactor placement: "seatback" or "wrist" -> produces e.g. seatback-left, wrist-right
-TACTOR_POSITION = "seatbak"
+TACTOR_POSITION = "seatback"
 # If True, flip LEFT/RIGHT for haptic output:
 #   - obstacle on LEFT  -> vibrate RIGHT
 #   - obstacle on RIGHT -> vibrate LEFT
 REVERSE_HAPTIC_SIDES = False
  
 # Audio mode: which set of sounds to use for alerts.
-# AUDIO_MODE: "steer", "pedestrian", or "beep"
-# - "steer": uses Audio_Files/steer/Steer_left.mp3 or Steer_right.mp3
-# - "pedestrian": uses Audio_Files/pedestrian/Pedestrian_left.mp3 or Pedestrian_right.mp3
-# - "beep": uses Audio_Files/beep/beep.mp3 for both left and right
 AUDIO_MODE = "pedestrian"
 
 # Delay (in seconds) between when an alert event is generated and when
@@ -130,6 +126,29 @@ def trigger_tactor(direction: str) -> int:
     return result.returncode
 
 
+def audio_file_for_alert(direction: str) -> Optional[str]:
+    """
+    Return the audio filename that corresponds to an alert direction + AUDIO_MODE.
+    Returns None if AUDIO_MODE is unknown.
+    """
+    mode = AUDIO_MODE.lower()
+
+    if mode == "steer":
+        base_name = "Steer"
+        side = "left" if direction.upper() == "RIGHT" else "right"
+        return f"{base_name}_{side}.mp3"
+    if mode == "pedestrian":
+        base_name = "Pedestrian"
+        side = "left" if direction.upper() == "LEFT" else "right"
+        return f"{base_name}_{side}.mp3"
+    if mode == "beep":
+        base_name = "Beep"
+        side = "right"  # pick whichever channel you want to use
+        return f"{base_name}_{side}.mp3"
+
+    return None
+
+
 def play_audio(direction: str) -> bool:
     """
     Play audio file based on direction (LEFT or RIGHT) and AUDIO_MODE.
@@ -143,20 +162,13 @@ def play_audio(direction: str) -> bool:
 
     if mode == "steer":
         folder = "steer"
-        base_name = "Steer"
-        side = "left" if direction.upper() == "RIGHT" else "right"
-        filename = f"{base_name}_{side}.mp3"
+        filename = audio_file_for_alert(direction) or ""
     elif mode == "pedestrian":
         folder = "pedestrian"
-        base_name = "Pedestrian"
-        side = "left" if direction.upper() == "LEFT" else "right"
-        filename = f"{base_name}_{side}.mp3"
+        filename = audio_file_for_alert(direction) or ""
     elif mode == "beep":
         folder = "beep"
-        base_name = "Beep"
-        # PICK ACCORDING TO USE CASE, change side to left or right depends what sound you want
-        side = "right" #if direction.upper() == "LEFT" else "right"
-        filename = f"{base_name}_{side}.mp3"
+        filename = audio_file_for_alert(direction) or ""
     else:
         print(f"[AUDIO][WARN] Unknown AUDIO_MODE '{AUDIO_MODE}'. Use: steer, pedestrian, or beep.")
         return False
@@ -185,7 +197,22 @@ def ensure_reaction_log_dir() -> None:
 def reaction_log_path() -> str:
     ensure_reaction_log_dir()
     timestamp = datetime_now()
-    return os.path.join(REACTION_LOG_DIR, f"reaction_times_{timestamp}.csv")
+
+    def _safe_part(value: object) -> str:
+        s = str(value).strip()
+        # keep filenames simple and cross-platform safe
+        s = s.replace(" ", "-").replace(os.sep, "-")
+        if os.altsep:
+            s = s.replace(os.altsep, "-")
+        return s
+
+    filename = (
+        f"{timestamp}_"
+        f"{_safe_part(TACTOR_POSITION)}_"
+        f"{_safe_part(REVERSE_HAPTIC_SIDES)}_"
+        f"{_safe_part(AUDIO_MODE)}.csv"
+    )
+    return os.path.join(REACTION_LOG_DIR, filename)
 
 
 def datetime_now() -> str:
@@ -205,6 +232,7 @@ def write_reaction_header(csv_path: str) -> None:
                 "distance_m",
                 "reaction_time_s",
                 "key_pressed",
+                "audio_file",
             ]
         )
 
@@ -217,6 +245,7 @@ def append_reaction_row(
     distance_m: float,
     reaction_time_s: float,
     key_pressed: str,
+    audio_file: str,
 ) -> None:
     with open(csv_path, "a", newline="") as csv_file:
         writer = csv.writer(csv_file)
@@ -229,6 +258,7 @@ def append_reaction_row(
                 f"{distance_m:.3f}",
                 f"{reaction_time_s:.3f}",
                 key_pressed.upper(),
+                audio_file,
             ]
         )
 
@@ -504,6 +534,7 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
 
         # Record time from when we initiate haptics/audio to user reaction
         start_time = time.time()
+        audio_file = audio_file_for_alert(direction) or ""
 
         # Start tactor and audio in their own threads so they run "together"
         def _tactor_thread() -> None:
@@ -539,6 +570,7 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
             distance_m,
             reaction_time,
             key_pressed,
+            audio_file,
         )
         print(
             f"[HAPTICS][REACTION] Alert #{alert_id} {direction} "
