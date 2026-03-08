@@ -577,6 +577,11 @@ def haptics_worker(event_queue: Queue, stop_event: Event) -> None:
             f"reaction time: {reaction_time:.3f}s (key: {key_pressed})"
         )
 
+        # After the first full alert + reaction is logged,
+        # stop further alerts for this run.
+        stop_event.set()
+        break
+
     print("[HAPTICS] Exiting.")
 
 
