@@ -71,7 +71,7 @@ AUDIO_MODE = "pedestrian"
 ALERT_AUDIO_DELAY_S = 1.6
 
 CONFIDENCE_THRESHOLD = 0.3
-ALERT_DISTANCE_METERS = 1.6
+ALERT_DISTANCE_METERS = 1.65
 # Maximum distance (pixels) to match detections to tracked objects
 TRACKING_MAX_DISTANCE = 100
 
