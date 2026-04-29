@@ -81,19 +81,15 @@ def main(opt):
 
     # Open the camera
     err = zed.open(init_params)
-    if err != sl.ERROR_CODE.SUCCESS:
+    if err > sl.ERROR_CODE.SUCCESS:
         exit(1)
 
     # Enable object detection module
     obj_param = sl.ObjectDetectionParameters()
     # Defines if the object detection will track objects across images flow.
     obj_param.enable_tracking = True       # if True, enable positional tracking
-
     obj_param.detection_model = sl.OBJECT_DETECTION_MODEL.MULTI_CLASS_BOX_MEDIUM
 
-    if obj_param.enable_tracking:
-        zed.enable_positional_tracking()
-        
     zed.enable_object_detection(obj_param)
 
     camera_info = zed.get_camera_information()

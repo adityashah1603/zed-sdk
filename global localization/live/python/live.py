@@ -33,13 +33,13 @@ def main():
     init_params = sl.InitParameters()
     init_params.sdk_verbose = 1 
     status = zed.open(init_params)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("[ZED][ERROR] Camera Open : "+repr(status)+". Exit program.")
         exit()
 
     # Enable positional tracking:
     positional_init = zed.enable_positional_tracking()
-    if positional_init != sl.ERROR_CODE.SUCCESS:
+    if positional_init > sl.ERROR_CODE.SUCCESS:
         print("[ZED][ERROR] Can't start tracking of camera : "+repr(status)+". Exit program.")
         exit()
 
@@ -96,7 +96,8 @@ def main():
 
         # Get GNSS data:
         status, input_gnss = gnss_reader.grab()
-        if status == sl.ERROR_CODE.SUCCESS:
+        if status <= sl.ERROR_CODE.SUCCESS:
+            assert input_gnss is not None
             # Display it on the Live Server
             viewer.updateRawGeoPoseData(input_gnss)
 

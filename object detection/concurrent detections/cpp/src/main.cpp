@@ -37,8 +37,8 @@
 
 // Sample includes
 #if ENABLE_GUI
-#include "GLViewer.hpp"
-#include "TrackingViewer.hpp"
+    #include "GLViewer.hpp"
+    #include "TrackingViewer.hpp"
 #endif
 
 // Using std and sl namespaces
@@ -46,9 +46,9 @@ using namespace std;
 using namespace sl;
 bool is_playback = false;
 void print(string msg_prefix, ERROR_CODE err_code = ERROR_CODE::SUCCESS, string msg_suffix = "");
-void parseArgs(int argc, char **argv, InitParameters& param);
+void parseArgs(int argc, char** argv, InitParameters& param);
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
 #ifdef _SL_JETSON_
     const bool isJetson = true;
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
 
     // Open the camera
     auto returned_state = zed.open(init_parameters);
-    if (returned_state != ERROR_CODE::SUCCESS) {
+    if (returned_state > ERROR_CODE::SUCCESS) {
         print("Camera Open", returned_state, "Exit program.");
         return EXIT_FAILURE;
     }
@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
     body_tracking_parameters.instance_module_id = 0; // select instance ID
 
     returned_state = zed.enableBodyTracking(body_tracking_parameters);
-    if (returned_state != ERROR_CODE::SUCCESS) {
+    if (returned_state > ERROR_CODE::SUCCESS) {
         print("enableBodyTracking", returned_state, "\nExit program.");
         zed.close();
         return EXIT_FAILURE;
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 
     print("Object Detection: Loading Module...");
     returned_state = zed.enableObjectDetection(object_detection_parameters);
-    if (returned_state != ERROR_CODE::SUCCESS) {
+    if (returned_state > ERROR_CODE::SUCCESS) {
         print("enableObjectDetection", returned_state, "\nExit program.");
         zed.close();
         return EXIT_FAILURE;
@@ -113,9 +113,13 @@ int main(int argc, char **argv) {
     int detection_confidence_od = 20;
     ObjectDetectionRuntimeParameters detection_parameters_rt(detection_confidence_od);
     // To select a set of specific object classes:
-    detection_parameters_rt.object_class_filter = { OBJECT_CLASS::ELECTRONICS, OBJECT_CLASS::SPORT,
-        OBJECT_CLASS::ANIMAL, OBJECT_CLASS::BAG, OBJECT_CLASS::VEHICLE, OBJECT_CLASS::FRUIT_VEGETABLE };
-
+    detection_parameters_rt.object_class_filter
+        = {OBJECT_CLASS::ELECTRONICS,
+           OBJECT_CLASS::SPORT,
+           OBJECT_CLASS::ANIMAL,
+           OBJECT_CLASS::BAG,
+           OBJECT_CLASS::VEHICLE,
+           OBJECT_CLASS::FRUIT_VEGETABLE};
 
     // Detection runtime parameters
     // default detection threshold, apply to all object class
@@ -139,8 +143,10 @@ int main(int argc, char **argv) {
     // init an sl::Mat from the ocv image ref (which is in fact the memory of global_image)
     cv::Mat image_render_left = cv::Mat(display_resolution.height, display_resolution.width, CV_8UC4, 1);
     Mat image_left(display_resolution, MAT_TYPE::U8_C4, image_render_left.data, image_render_left.step);
-    sl::float2 img_scale(display_resolution.width / (float) camera_config.resolution.width, display_resolution.height / (float) camera_config.resolution.height);
-
+    sl::float2 img_scale(
+        display_resolution.width / (float)camera_config.resolution.width,
+        display_resolution.height / (float)camera_config.resolution.height
+    );
 
     // 2D tracks
     TrackingViewer track_view_generator(tracks_resolution, camera_config.fps, init_parameters.depth_maximum_distance, 3);
@@ -173,9 +179,10 @@ int main(int argc, char **argv) {
     bool gl_viewer_available = true;
     while (
 #if ENABLE_GUI
-            gl_viewer_available &&
+        gl_viewer_available &&
 #endif
-            !quit) {
+        !quit
+    ) {
 
         auto grab_state = zed.grab(runtime_parameters);
         if (grab_state <= ERROR_CODE::SUCCESS) {
@@ -199,7 +206,6 @@ int main(int argc, char **argv) {
 #else
             cout << "Detected " << objects.object_list.size() << " Object(s)" << endl;
 #endif
-
 
             if (is_playback && zed.getSVOPosition() == zed.getSVONumberOfFrames())
                 quit = true;
@@ -231,10 +237,12 @@ int main(int argc, char **argv) {
 
 void print(string msg_prefix, ERROR_CODE err_code, string msg_suffix) {
     cout << "[Sample] ";
-    if (err_code != ERROR_CODE::SUCCESS)
+    if (err_code > ERROR_CODE::SUCCESS)
         cout << "[Error] ";
+    else if (err_code < ERROR_CODE::SUCCESS)
+        cout << "[Warning] ";
     cout << msg_prefix << " ";
-    if (err_code != ERROR_CODE::SUCCESS) {
+    if (err_code > ERROR_CODE::SUCCESS) {
         cout << " | " << toString(err_code) << " : ";
         cout << toVerbose(err_code);
     }
@@ -243,7 +251,7 @@ void print(string msg_prefix, ERROR_CODE err_code, string msg_suffix) {
     cout << endl;
 }
 
-void parseArgs(int argc, char **argv, InitParameters& param) {
+void parseArgs(int argc, char** argv, InitParameters& param) {
     if (argc > 1 && string(argv[1]).find(".svo") != string::npos) {
         // SVO input mode
         param.input.setFromSVOFile(argv[1]);
@@ -276,6 +284,12 @@ void parseArgs(int argc, char **argv, InitParameters& param) {
         } else if (arg.find("SVGA") != string::npos) {
             param.camera_resolution = RESOLUTION::SVGA;
             cout << "[Sample] Using Camera in resolution SVGA" << endl;
+        } else if (arg.find("XVGA") != string::npos) {
+            param.camera_resolution = RESOLUTION::XVGA;
+            cout << "[Sample] Using Camera in resolution XVGA" << endl;
+        } else if (arg.find("TXGA") != string::npos) {
+            param.camera_resolution = RESOLUTION::TXGA;
+            cout << "[Sample] Using Camera in resolution TXGA" << endl;
         } else if (arg.find("VGA") != string::npos) {
             param.camera_resolution = RESOLUTION::VGA;
             cout << "[Sample] Using Camera in resolution VGA" << endl;

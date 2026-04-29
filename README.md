@@ -32,9 +32,13 @@
 
 ---
 
-:tada: The **ZED SDK 5.1** is released!
+:tada: The **ZED SDK 5.3** is released!
 
-**ZED SDK 5.1** introduces a fully reworked **image capture** and **recording** pipeline delivering **stability**, **maximum performance**, and **reliability**. It adds **Jetson Thor support**, delivering up to **2.5× higher performance**. An **extra-close depth range** is now supported. **Streaming latency** is significantly reduced, ensuring smoother real-time operation. A redesigned **Virtual Stereo workflow for ZED X One** now achieves up to **60% lower CPU usage**. **OpenCV fisheye calibration** is now supported natively, and the new **ZED Studio** app unifies camera, stream, and SVO management. Improved **Positional Tracking** boosts **robustness**, introduces a **2D mode**, and refines **statuses**. Expanded support for **CUDA 13**, **JetPack 7**, **Python 3.14**, and **C++17/20** makes **ZED SDK 5.1** faster, more stable, and ready for the next generation of robotics and spatial AI.
+**ZED SDK 5.3** introduces support for the new ZED X Nano camera, an ultra-compact module featuring an 18 mm baseline and dual global-shutter sensors, enabling high-quality stereo capture for close-range manipulation tasks. This release includes an update to the NEURAL LIGHT model, which has improved robustness and accuracy in challenging environments while maintaining the same runtime cost. The new voxel-decimation mode provides point clouds with depth-adaptive resolution, reducing memory and bandwidth usage while preserving detail where it matters most. In addition, native AES-256 encryption for SVO2 recordings ensures secure data storage and protects sensitive captured information.
+
+Core system improvements streamline deployment and integration. Camera calibration is now stored directly on board in EEPROM, removing network dependency at initialization. The SDK can also automatically reuse an existing CUDA primary context, enabling smoother interoperability with frameworks such as PyTorch. Additionally, a new monotonic TIMESTAMP_CLOCK option ensures image and IMU timestamps remain stable and unaffected by wall-clock adjustments (e.g., NTP/PTP).
+
+Performance and ecosystem updates further enhance the platform. Recording now benefits from significantly reduced CPU usage through zero-copy capture, complemented by the new SVO_ENCODING_PRESET API for flexible quality–performance tuning. SLAM GEN_3 delivers improved accuracy in low-texture environments, ROS 2 image topics support zero-copy intra-process communication, and overall streaming and GMSL stability have been strengthened.
 
 Please check the [Release Notes](https://www.stereolabs.com/developers/release/) of the latest version for more details.
 

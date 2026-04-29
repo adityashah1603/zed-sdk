@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # create the camera that will input the position from its odometry
     zed = sl.Camera()
     status = zed.open(init_params)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("Camera Open: " + repr(status) + ". Exit program.")
         exit()
     
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     zed.start_publishing(communication_parameters)
 
     # warmup for camera 
-    if zed.grab() != sl.ERROR_CODE.SUCCESS:
+    if zed.grab() > sl.ERROR_CODE.SUCCESS:
         print("Camera grab: " + repr(status) + ". Exit program.")
         exit()
     else:
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     tracking_params.enable_imu_fusion = True
     tracking_params.set_gravity_as_origin = True
     err = zed.enable_positional_tracking(tracking_params)
-    if (err != sl.ERROR_CODE.SUCCESS):
+    if (err > sl.ERROR_CODE.SUCCESS):
         print("Camera positional tracking: " + repr(status) + ". Exit program.")
         exit()
     camera_info = zed.get_camera_information()
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     fusion.init(init_fusion_parameters)
     positional_tracking_fusion_parameters = sl.PositionalTrackingFusionParameters()
     fusion.enable_positionnal_tracking(positional_tracking_fusion_parameters)
-    
+
     uuid = sl.CameraIdentifier(camera_info.serial_number)
     print("Subscribing to", uuid.serial_number, communication_parameters.comm_type) #Subscribe fusion to camera
     status = fusion.subscribe(uuid, communication_parameters, sl.Transform(0,0,0))
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     i = 0
     while i < 200:
         # get the odometry information
-        if zed.grab() == sl.ERROR_CODE.SUCCESS:
+        if zed.grab() <= sl.ERROR_CODE.SUCCESS:
             zed.get_position(odometry_pose, sl.REFERENCE_FRAME.WORLD)
 
         elif zed.grab() == sl.ERROR_CODE.END_OF_SVOFILE_REACHED:

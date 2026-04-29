@@ -13,7 +13,7 @@
 #include <cuda_gl_interop.h>
 
 #ifndef M_PI
-#define M_PI 3.141592653f
+    #define M_PI 3.141592653f
 #endif
 
 #define MOUSE_R_SENSITIVITY 0.03f
@@ -22,21 +22,28 @@
 #define MOUSE_T_SENSITIVITY 0.05f
 #define KEY_T_SENSITIVITY 0.1f
 
-
 //// UTILS //////
 using namespace std;
-void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "") ;
+void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "");
 
 /////////////////
 
 class CameraGL {
 public:
-
-    CameraGL() {}
+    CameraGL() { }
     enum DIRECTION {
-        UP, DOWN, LEFT, RIGHT, FORWARD, BACK
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT,
+        FORWARD,
+        BACK
     };
-    CameraGL(sl::Translation position, sl::Translation direction, sl::Translation vertical = sl::Translation(0, 1, 0)); // vertical = Eigen::Vector3f(0, 1, 0)
+    CameraGL(
+        sl::Translation position,
+        sl::Translation direction,
+        sl::Translation vertical = sl::Translation(0, 1, 0)
+    ); // vertical = Eigen::Vector3f(0, 1, 0)
     ~CameraGL();
 
     void update();
@@ -52,7 +59,7 @@ public:
     void setOffsetFromPosition(const sl::Translation& offset);
     const sl::Translation& getOffsetFromPosition() const;
 
-    void setDirection(const sl::Translation& direction, const sl::Translation &vertical);
+    void setDirection(const sl::Translation& direction, const sl::Translation& vertical);
     void translate(const sl::Translation& t);
     void setPosition(const sl::Translation& p);
     void rotate(const sl::Orientation& rot);
@@ -73,6 +80,7 @@ public:
     static const sl::Translation ORIGINAL_RIGHT;
 
     sl::Transform projection_;
+
 private:
     void updateVectors();
     void updateView();
@@ -97,8 +105,10 @@ private:
 
 class Shader {
 public:
-
-    Shader() : verterxId_(0), fragmentId_(0), programId_(0) {}
+    Shader()
+        : verterxId_(0)
+        , fragmentId_(0)
+        , programId_(0) { }
     Shader(const GLchar* vs, const GLchar* fs);
     ~Shader();
 
@@ -115,8 +125,9 @@ public:
 
     static const GLint ATTRIB_VERTICES_POS = 0;
     static const GLint ATTRIB_COLOR_POS = 1;
+
 private:
-    bool compile(GLuint &shaderId, GLenum type, const GLchar* src);
+    bool compile(GLuint& shaderId, GLenum type, const GLchar* src);
     GLuint verterxId_;
     GLuint fragmentId_;
     GLuint programId_;
@@ -124,7 +135,6 @@ private:
 
 class Simple3DObject {
 public:
-
     Simple3DObject();
     Simple3DObject(sl::Translation position, bool isStatic);
     ~Simple3DObject();
@@ -151,6 +161,7 @@ public:
     const sl::Translation& getPosition() const;
 
     sl::Transform getModelMatrix() const;
+
 private:
     std::vector<float> vertices_;
     std::vector<float> colors_;
@@ -171,7 +182,6 @@ private:
 
     sl::Translation position_;
     sl::Orientation rotation_;
-
 };
 
 class PointCloud {
@@ -179,25 +189,31 @@ public:
     PointCloud();
     ~PointCloud();
 
-    // Initialize Opengl and Cuda buffers
-    // Warning: must be called in the Opengl thread
+    // Initialize OpenGL and CUDA buffers
+    // Warning: must be called in the OpenGL thread
     void initialize(sl::Resolution res, CUstream strm);
-    // Push a new point cloud
+    // Push a new point cloud / voxel set — stores the GPU pointer directly, no copy.
+    // The sl::Mat must remain valid until update() is called.
     // Warning: can be called from any thread but the mutex "mutexData" must be locked
-    void pushNewPC(sl::Mat &matXYZRGBA);
-    // Update the Opengl buffer
-    // Warning: must be called in the Opengl thread
+    void pushNewPC(sl::Mat& matXYZRGBA);
+    // Update the OpenGL buffer (copies from the pending Mat pointer, resizes if needed)
+    // Warning: must be called in the OpenGL thread
     void update();
     // Draw the point cloud
-    // Warning: must be called in the Opengl thread
+    // Warning: must be called in the OpenGL thread
     void draw(const sl::Transform& vp);
     // Close (disable update)
     void close();
-    
+
     std::mutex mutexData;
+
 private:
-    sl::Mat matGPU_;
+    // Grow the GL/CUDA interop buffer to newCapacity float4 elements.
+    // Must be called from the OpenGL thread.
+    void resize(size_t newCapacity);
+
     bool hasNewPCL_ = false;
+    bool mapped_ = false; // true when the CUDA resource is currently mapped
     Shader shader_;
     GLuint shMVPMatrixLoc_;
     size_t numBytes_;
@@ -205,6 +221,12 @@ private:
     GLuint bufferGLID_;
     cudaGraphicsResource* bufferCudaID_;
     CUstream strm;
+
+    // Runtime shape support
+    size_t capacity_;              // GL buffer capacity in float4 elements
+    size_t currentCount_;          // number of points/voxels currently drawn
+    const sl::float4* pendingPtr_; // GPU pointer borrowed from the caller's sl::Mat
+    size_t pendingCount_;          // number of float4 elements in the pending data
 };
 
 // This class manages input events, window and Opengl rendering pipeline
@@ -214,11 +236,15 @@ public:
     ~GLViewer();
     bool isAvailable();
 
-    GLenum init(int argc, char **argv, sl::CameraParameters param, CUstream strm, sl::Resolution image_size);
-    void updatePointCloud(sl::Mat &matXYZRGBA);
+    GLenum init(int argc, char** argv, sl::CameraParameters param, CUstream strm, sl::Resolution image_size);
+    void updatePointCloud(sl::Mat& matXYZRGBA);
 
     void exit();
     bool shouldSaveData();
+    bool useVoxels() const {
+        return useVoxels_;
+    }
+
 private:
     // Rendering loop method called each frame by glutDisplayFunc
     void render();
@@ -228,7 +254,7 @@ private:
     void draw();
     // Clear and refresh inputs' data
     void clearInputs();
-    
+
     // Glut functions callbacks
     static void drawCallback();
     static void mouseButtonCallback(int button, int state, int x, int y);
@@ -268,6 +294,7 @@ private:
     Shader shader_;
     GLuint shMVPMatrixLoc_;
     bool shouldSaveData_ = false;
+    bool useVoxels_ = false;
 };
 
 #endif /* __VIEWER_INCLUDE__ */

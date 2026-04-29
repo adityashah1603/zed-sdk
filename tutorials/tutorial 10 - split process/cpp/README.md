@@ -47,7 +47,7 @@ init_params.coordinate_units = UNIT::MILLIMETER; // Use millimeter units
 
 // Open the camera
 ERROR_CODE err = zed.open(init_params);
-if (err != ERROR_CODE::SUCCESS) {
+if (err > ERROR_CODE::SUCCESS) {
     std::cout << "Error " << err << ", exit program.\n"; // Display the error
     return -1;
 }
@@ -67,14 +67,14 @@ This split between image capture (read) and depth computation (grab) also allows
 ```
 while (frame_count < 150) {
         // A new image is available if read() returns ERROR_CODE::SUCCESS
-        if (zed.read() == ERROR_CODE::SUCCESS) {
+        if (zed.read() <= ERROR_CODE::SUCCESS) {
             // Retrieve left image
             zed.retrieveImage(image, VIEW::LEFT);
             frame_count++;
         }
 
-        // Measurement are available if grab() returns ERROR_CODE::SUCCESS
-        if(((frame_count % depth_every_n_frames) == 0) && (zed.grab() == ERROR_CODE::SUCCESS)) {
+        // Measurement are available if grab() returns ERROR_CODE::SUCCESS or a WARNING (an error_code lower than ERROR_CODE::SUCCESS)
+        if(((frame_count % depth_every_n_frames) == 0) && (zed.grab() <= ERROR_CODE::SUCCESS)) {
             // Retrieve depth map. Depth is aligned on the left image
             zed.retrieveMeasure(depth, MEASURE::DEPTH);
             // Retrieve colored point cloud. Point cloud is aligned on the left image.

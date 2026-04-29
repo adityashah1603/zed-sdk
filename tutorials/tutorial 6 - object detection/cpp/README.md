@@ -45,7 +45,7 @@ initParameters.sdk_verbose = true;
 
 // Open the camera
 ERROR_CODE zed_error = zed.open(initParameters);
-if (zed_error != ERROR_CODE::SUCCESS) {
+if (zed_error > ERROR_CODE::SUCCESS) {
 	std::cout << "Error " << zed_error << ", exit program.\n";
 	return 1; // Quit if an error occurred
 }
@@ -54,6 +54,8 @@ if (zed_error != ERROR_CODE::SUCCESS) {
 ## Enable Object detection
 
 We will define the object detection parameters. Notice that the object tracking needs the positional tracking to be able to track the objects in the world reference frame.
+
+From SDK 5.3, if `enable_tracking=true` and positional tracking was not explicitly enabled by the user, the SDK can auto-enable an internal `GEN_1` positional tracking fallback so the module still works. For higher-accuracy localization/mapping workflows (for example `GEN_3` with area memory), explicitly enable positional tracking with your desired parameters.
 
 ```cpp
 // Define the Objects detection module parameters
@@ -71,7 +73,7 @@ Then we can start the module, it will load the model. This operation can take a 
 ```cpp
 std::cout << "Object Detection: Loading Module..." << std::endl;
 zed_error = zed.enableObjectDetection(detection_parameters);
-if (zed_error != ERROR_CODE::SUCCESS) {
+if (zed_error > ERROR_CODE::SUCCESS) {
 	std::cout << "Error " << zed_error << ", exit program.\n";
 	zed.close();
 	return 1;
@@ -93,7 +95,7 @@ zed.setObjectDetectionRuntimeParameters(detection_parameters_rt); // Can be set 
 // Detection output
 Objects objects;
 
-while (zed.grab() == ERROR_CODE::SUCCESS) {
+while (zed.grab() <= ERROR_CODE::SUCCESS) {
 	zed_error = zed.retrieveObjects(objects);
 
 	if (objects.is_new) {

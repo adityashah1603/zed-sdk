@@ -32,14 +32,17 @@ public:
     void addPoint(const sl::float3& pt);
     void setColor(const sl::float4& color);
     void setMVP(const sl::Transform& mvp);
-    
+    void setMaxPoints(size_t maxPoints);
+
     void draw();
     void clear();
-    
+
 private:
+    static constexpr size_t DEFAULT_MAX_POINTS = 100000;
+    size_t _maxPoints = DEFAULT_MAX_POINTS;
     std::vector<sl::float3> _points;
     sl::float4 _color = {1.f, 1.f, 1.f, 1.f};
-    sl::Transform _mvp = sl::Transform(); 
+    sl::Transform _mvp = sl::Transform();
 
     GLuint _vaoID = 0;
     GLuint _vboID = 0;
@@ -49,7 +52,7 @@ private:
 
     bool _needsUpdate = false;
     bool _isGLInitialized = false;
-    
+
     void initGL();
     void pushToGPU();
 };

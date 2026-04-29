@@ -43,6 +43,7 @@ struct Arguments {
     std::optional<std::string> roiFile = std::nullopt;
     bool customInitialPose = false;
     bool enable2dGroundMode = false;
+    bool exportTUMFile = false;
 };
 
 //
@@ -56,7 +57,7 @@ void printTrackingParameters(PositionalTrackingParameters trackingParameters);
 void print(std::string message, std::optional<ERROR_CODE> errorCode = std::nullopt, bool showErrorDetail = true);
 
 cv::Mat slMat2cvMat(Mat& input);
-cv::Scalar interpolate_color(const cv::Scalar& color1, const cv::Scalar& color2, float ratio);
+cv::Scalar interpolate_color(const cv::Scalar& color1, const cv::Scalar& color2, float dynamic_confidence);
 
 //
 // Main
@@ -97,7 +98,6 @@ int main(int argc, char** argv) {
 
     if (args.svoFile) {
         initParameters.input.setFromSVOFile(args.svoFile.value().c_str());
-        initParameters.svo_real_time_mode = true;
     } else if (args.streamIP && args.streamPort) {
         initParameters.input.setFromStream(args.streamIP.value().c_str(), args.streamPort.value());
     } else if (args.streamIP) {
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
     trackingParameters.depth_min_range = -1;
     trackingParameters.enable_2d_ground_mode = args.enable2dGroundMode;
     trackingParameters.enable_localization_only = false;
-    trackingParameters.mode = POSITIONAL_TRACKING_MODE::GEN_1;
+    trackingParameters.mode = POSITIONAL_TRACKING_MODE::GEN_3;
 
     if (args.roiFile) {
         sl::Mat roi;
@@ -186,9 +186,17 @@ int main(int argc, char** argv) {
     //
     std::map<uint64_t, Landmark> landmarkMap;
     std::vector<Landmark2D> landmarks2D;
+    std::map<uint64_t, KeyFrame> keyframes;
 
     uint64_t lastLandmarkUpdate = getCurrentTimeStamp().getSeconds();
     Resolution displayResolution = zed.getRetrieveMeasureResolution();
+
+    //
+    // Prepare out file for TUM trajectory
+    //
+    std::ofstream out_tum;
+    if (args.exportTUMFile)
+        out_tum.open("out.tum");
 
     //
     // Main loop
@@ -214,7 +222,15 @@ int main(int argc, char** argv) {
         }
 
         // Retrieve the left image
-        zed.retrieveImage(leftImage, VIEW::LEFT, MEM::CPU, displayResolution);
+        if (trackingParameters.mode == POSITIONAL_TRACKING_MODE::GEN_3)
+            zed.retrieveImage(
+                leftImage,
+                VIEW::LEFT /*Set it to VIEW::LEFT_UNRECTIFIED if you are using fisheye lens*/,
+                MEM::CPU,
+                displayResolution
+            );
+        else
+            zed.retrieveImage(leftImage, VIEW::LEFT, MEM::CPU, displayResolution);
 
         // Retrieve the calculated point cloud
         zed.retrieveMeasure(pointCloud, MEASURE::XYZBGRA, MEM::GPU, displayResolution);
@@ -222,18 +238,29 @@ int main(int argc, char** argv) {
         // Retrieve the calculated camera pose
         zed.getPosition(pose);
 
+        // Export the pose in TUM format
+        if (args.exportTUMFile) {
+            out_tum << std::fixed << std::setprecision(9) << pose.timestamp.getMilliseconds() << " " << pose.getTranslation().tx << " "
+                    << pose.getTranslation().ty << " " << pose.getTranslation().tz << " " << pose.getOrientation().ox << " "
+                    << pose.getOrientation().oy << " " << pose.getOrientation().oz << " " << pose.getOrientation().ow << std::endl;
+            out_tum.flush();
+        }
+
         // Update display
         //
         view.updatePoseTransform(pose.pose_data);
         view.updatePositionalTrackingStatus(zed.getPositionalTrackingStatus());
 
-        if (getCurrentTimeStamp().getSeconds() - lastLandmarkUpdate > 1) {
+        if (zed.getTimestamp(sl::TIME_REFERENCE::IMAGE).getSeconds() - lastLandmarkUpdate > 1) {
             zed.getPositionalTrackingLandmarks(landmarkMap);
             view.updateLandmarks(landmarkMap);
-            lastLandmarkUpdate = getCurrentTimeStamp().getSeconds();
+            lastLandmarkUpdate = zed.getTimestamp(sl::TIME_REFERENCE::IMAGE).getSeconds();
+
+            zed.getPositionalTrackingKeyframes(keyframes);
+            view.updateKeyframes(keyframes);
         }
 
-        if (view.isLandmarkModeEnabled() && landmarkMap.size()) {
+        if (view.isLandmarkModeEnabled()) {
             zed.getPositionalTrackingLandmarks2D(landmarks2D);
 
             static const cv::Scalar inlierLandmarkColor(63, 255, 67, 255);
@@ -245,7 +272,7 @@ int main(int argc, char** argv) {
 
             cv::Mat leftImageCVMat = slMat2cvMat(leftImage);
             for (auto& landmark2D : landmarks2D) {
-                cv::Scalar color = interpolate_color(inlierLandmarkColor, outlierLandmarkColor, 1 - landmark2D.dynamic_confidence);
+                cv::Scalar color = interpolate_color(inlierLandmarkColor, outlierLandmarkColor, landmark2D.dynamic_confidence);
 
                 cv::circle(
                     leftImageCVMat,
@@ -257,6 +284,9 @@ int main(int argc, char** argv) {
             }
         }
     });
+
+    if (args.exportTUMFile)
+        out_tum.close();
 
     //
     // OpenGL cleanup
@@ -271,7 +301,7 @@ int main(int argc, char** argv) {
 
         ERROR_CODE status = zed.saveAreaMap(args.outputAreaFile.value().c_str());
 
-        if (status == ERROR_CODE::SUCCESS) {
+        if (status <= ERROR_CODE::SUCCESS) {
             AREA_EXPORTING_STATE exportState = zed.getAreaExportState();
 
             while (exportState == sl::AREA_EXPORTING_STATE::RUNNING) {
@@ -332,6 +362,7 @@ void printUsage(const std::string& programName) {
               << "  --roi <roi_filepath>        Optional. Region of interest image mask to ignore a static area\n"
               << "  --custom-initial-pose       Optional. Use custom initial pose (see code comments for more detail)\n"
               << "  --2d-ground-mode            Optional. Enable 2D ground mode\n"
+              << "  --export-tum                Optional. Export camera trajectory to out.tum file in TUM format\n"
               << "\nExamples:\n"
               << "  " << programName << " --map -o new_map.area\n"
               << "  " << programName << " --svo recording.svo2 -i map.area\n";
@@ -403,6 +434,8 @@ bool parseArgs(int argc, char* argv[], Arguments& args) {
             args.customInitialPose = true;
         } else if (arg == "--2d-ground-mode") {
             args.enable2dGroundMode = true;
+        } else if (arg == "--export-tum") {
+            args.exportTUMFile = true;
         } else {
             print("Unrecognized or incomplete argument: " + arg, ERROR_CODE::FAILURE, false);
             return false;
@@ -424,6 +457,9 @@ void printArgs(const Arguments& args) {
         switch (args.resolution.value()) {
             case RESOLUTION::HD2K:
                 message += "HD2K";
+                break;
+            case RESOLUTION::HD1536:
+                message += "HD1536";
                 break;
             case RESOLUTION::HD1200:
                 message += "HD1200";
@@ -482,6 +518,10 @@ void printArgs(const Arguments& args) {
         print("Enabled 2D ground mode");
     }
 
+    if (args.exportTUMFile) {
+        print("Enabled TUM trajectory export to out.tum");
+    }
+
     std::cout << "\n";
 }
 
@@ -512,15 +552,17 @@ void printTrackingParameters(PositionalTrackingParameters trackingParameters) {
 void print(std::string message, std::optional<ERROR_CODE> errorCode, bool showErrorDetail) {
     std::cout << "\033[36m[Sample]\033[0m";
 
-    if (errorCode && errorCode != ERROR_CODE::SUCCESS) {
+    if (errorCode && errorCode > ERROR_CODE::SUCCESS) {
         std::cout << " \033[31m[Error]\033[0m ";
+    } else if (errorCode && errorCode < ERROR_CODE::SUCCESS) {
+        std::cout << " \033[33m[Warning]\033[0m ";
     } else {
         std::cout << " ";
     }
 
     std::cout << message;
 
-    if (errorCode && errorCode != ERROR_CODE::SUCCESS && showErrorDetail) {
+    if (errorCode && errorCode > ERROR_CODE::SUCCESS && showErrorDetail) {
         std::cout << " | " << toString(errorCode.value()) << ": " << toVerbose(errorCode.value());
     }
 
@@ -562,19 +604,24 @@ cv::Mat slMat2cvMat(Mat& input) {
     return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(MEM::CPU));
 }
 
-cv::Scalar interpolate_color(const cv::Scalar& color1, const cv::Scalar& color2, float ratio) {
-    if (ratio < 0.0f) {
-        ratio = 0.0f;
+cv::Scalar interpolate_color(const cv::Scalar& color1, const cv::Scalar& color2, float dynamic_confidence) {
+
+    if (dynamic_confidence == -1.f) {
+        return cv::Scalar(240, 25, 25, 255);
     }
 
-    if (ratio > 1.0f) {
-        ratio = 1.0f;
+    if (dynamic_confidence < 0.0f) {
+        dynamic_confidence = 0.0f;
+    }
+
+    if (dynamic_confidence > 1.0f) {
+        dynamic_confidence = 1.0f;
     }
 
     return cv::Scalar(
-        color1[0] * (1 - ratio) + color2[0] * ratio,
-        color1[1] * (1 - ratio) + color2[1] * ratio,
-        color1[2] * (1 - ratio) + color2[2] * ratio,
-        color1[3] * (1 - ratio) + color2[3] * ratio
+        color1[0] * dynamic_confidence + color2[0] * (1 - dynamic_confidence),
+        color1[1] * dynamic_confidence + color2[1] * (1 - dynamic_confidence),
+        color1[2] * dynamic_confidence + color2[2] * (1 - dynamic_confidence),
+        color1[3] * dynamic_confidence + color2[3] * (1 - dynamic_confidence)
     );
 }

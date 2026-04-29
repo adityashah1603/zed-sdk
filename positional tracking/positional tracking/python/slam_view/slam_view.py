@@ -19,6 +19,7 @@
 ###########################################################################
 
 from enum import Enum
+import time
 import numpy as np
 import pyzed.sl as sl
 
@@ -99,6 +100,8 @@ class SLAMView:
         self._frame_texture_id = 0
         self._pose_transform = sl.Transform()
         self._positional_tracking_status = sl.PositionalTrackingStatus()
+
+        self._start_time = time.monotonic()
 
         self._mouse_button_pressed = False
         self._ctrl_pressed = False
@@ -256,10 +259,10 @@ class SLAMView:
         self._camera_path.draw()
 
         if self._landmark_mode:
-            glPointSize(3.0)
+            glPointSize(1.5)
             self._landmarks.draw()
 
-        glPointSize(2.0)
+        glPointSize(1.0)
 
         transformed_pose = vp_matrix @ self._pose_transform.m
         glUniformMatrix4fv(self._mvp_matrix, 1, GL_TRUE, transformed_pose)
@@ -381,7 +384,7 @@ class SLAMView:
         # Spatial memory status
         self._render_text(start_x, start_y - vertical_spacing, FONT, text_color, "Spatial Memory:");
 
-        status_color = COLOR_GREEN if self._positional_tracking_status.spatial_memory_status != sl.SPATIAL_MEMORY_STATUS.OFF else COLOR_RED
+        status_color = COLOR_GREEN if self._positional_tracking_status.spatial_memory_status != sl.SPATIAL_MEMORY_STATUS.OFF and self._positional_tracking_status.spatial_memory_status != sl.SPATIAL_MEMORY_STATUS.NOT_ENOUGH_MEMORY_FOR_TRACKING else COLOR_RED
 
         spatial_memory_status_text = str(self._positional_tracking_status.spatial_memory_status)
 
@@ -396,12 +399,23 @@ class SLAMView:
 
         self._render_text(status_value_x, start_y - 2 * vertical_spacing, FONT, status_color, odometry_status_text)
 
-        # Pose transform
-        self._render_text(start_x, start_y - 4 * vertical_spacing, FONT, text_color, "Translation (m):")
-        self._render_text(status_value_x, start_y - 4 * vertical_spacing, FONT, text_color, self._format_numeric_text(self._pose_transform.get_translation().get()))
+        # Up time
+        elapsed = time.monotonic() - self._start_time
+        total_seconds = int(elapsed)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        self._render_text(start_x, start_y - 5 * vertical_spacing, FONT, text_color, "Rotation   (rad):")
-        self._render_text(status_value_x, start_y - 5 * vertical_spacing, FONT, text_color, self._format_numeric_text(self._pose_transform.get_rotation_vector()))
+        self._render_text(start_x, start_y - 4 * vertical_spacing, FONT, text_color, "Up Time:")
+        self._render_text(status_value_x, start_y - 4 * vertical_spacing, FONT, text_color, uptime_str)
+
+        # Pose transform
+        self._render_text(start_x, start_y - 6 * vertical_spacing, FONT, text_color, "Translation (m):")
+        self._render_text(status_value_x, start_y - 6 * vertical_spacing, FONT, text_color, self._format_numeric_text(self._pose_transform.get_translation().get()))
+
+        self._render_text(start_x, start_y - 7 * vertical_spacing, FONT, text_color, "Rotation   (rad):")
+        self._render_text(status_value_x, start_y - 7 * vertical_spacing, FONT, text_color, self._format_numeric_text(self._pose_transform.get_rotation_vector()))
 
         # Restore matrices
         glMatrixMode(GL_PROJECTION)

@@ -48,12 +48,12 @@ def main(opt):
     # create the camera that will input the position from its odometry
     zed = sl.Camera()
     status = zed.open(init_params)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("[ZED][ERROR] Camera Open : " + repr(status) + ". Exit program.")
         exit()
     # Enable positional tracking:
     positional_init = zed.enable_positional_tracking()
-    if positional_init != sl.ERROR_CODE.SUCCESS:
+    if positional_init > sl.ERROR_CODE.SUCCESS:
         print("[ZED][ERROR] Can't start tracking of camera : " + repr(status) + ". Exit program.")
         exit()
 
@@ -119,6 +119,7 @@ def main(opt):
             exit()
         status, input_gnss = gnss_replay.grab(zed_pose.timestamp.get_nanoseconds())
         if status == sl.FUSION_ERROR_CODE.SUCCESS:
+            assert input_gnss is not None
             ingest_error = fusion.ingest_gnss_data(input_gnss)
             latitude, longitude, altitude = input_gnss.get_coordinates(False)
             coordinates = {

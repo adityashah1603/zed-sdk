@@ -247,8 +247,8 @@ class GNSSReplay:
             elif gpsd_status == 9:  # STATUS_PPS_FIX
                 sl_status = sl.GNSS_STATUS.SINGLE
 
-            current_gnss_data.gnss_mode = sl_mode.value
-            current_gnss_data.gnss_status = sl_status.value
+            current_gnss_data.gnss_mode = sl_mode
+            current_gnss_data.gnss_status = sl_status
 
         return current_gnss_data
 
@@ -289,7 +289,9 @@ class GNSSReplay:
         current_data.ts.data_ns = 0
 
         if current_timestamp > 0 and current_timestamp > self.last_cam_ts:
-            current_data = self.getNextGNSSValue(current_timestamp)
+            next_data = self.getNextGNSSValue(current_timestamp)
+            if next_data is not None:
+                current_data = next_data
         if current_data.ts.data_ns == self.previous_ts:
             current_data.ts.data_ns = 0
 

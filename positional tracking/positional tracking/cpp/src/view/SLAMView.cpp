@@ -37,6 +37,7 @@ const sl::float4 colorIron(194 * to_f, 194 * to_f, 194 * to_f, 0.2f);
 const sl::float4 colorSoil(25 * to_f, 25 * to_f, 25 * to_f, 1.f);
 const sl::float4 colorGreen(67 * to_f, 255 * to_f, 63 * to_f, 1.f);
 const sl::float4 colorRed(255 * to_f, 100 * to_f, 100 * to_f, 1.f);
+const sl::float4 colorBlue(100 * to_f, 100 * to_f, 255 * to_f, 1.f);
 
 void* font = GLUT_BITMAP_HELVETICA_18;
 
@@ -79,6 +80,7 @@ SLAMView::SLAMView(int argc, char** argv, sl::Mat* frame, sl::Mat* pointCloud, C
     , _pointCloudMode(true)
     , _landmarkMode(false)
     , _followMode(false)
+    , _startTime(std::chrono::steady_clock::now())
     , _cudaStream(cudaStream)
     , _frameTextureID(0) {
 
@@ -179,6 +181,7 @@ SLAMView::SLAMView(int argc, char** argv, sl::Mat* frame, sl::Mat* pointCloud, C
     _pointCloud.initialize(*pointCloud);
 
     _landmarks.setDrawingType(GL_POINTS);
+    _keyframes.setDrawingType(GL_LINES);
 }
 
 bool SLAMView::isLandmarkModeEnabled() const {
@@ -216,11 +219,51 @@ void SLAMView::updateLandmarks(std::map<uint64_t, sl::Landmark>& landmarks) {
     }
 }
 
+sl::float3 applyRT(const sl::float3& point, const sl::Matrix4f& rt) {
+    sl::float3 transformedPoint;
+    transformedPoint.x = (rt.m[0] * point.x + rt.m[1] * point.y + rt.m[2] * point.z + rt.m[3]);
+    transformedPoint.y = (rt.m[4] * point.x + rt.m[5] * point.y + rt.m[6] * point.z + rt.m[7]);
+    transformedPoint.z = (rt.m[8] * point.x + rt.m[9] * point.y + rt.m[10] * point.z + rt.m[11]);
+    return transformedPoint;
+}
+
+void SLAMView::updateKeyframes(const std::map<uint64_t, sl::KeyFrame>& keyframes) {
+    _keyframes.clear();
+
+    const float z_ = -.05f; // ogl convention
+    const float width = 0.05f;
+    const float height = width * 0.75f;
+
+    std::vector<sl::float3> cameraCorners
+        = {sl::float3(-width, -height, z_), sl::float3(width, -height, z_), sl::float3(width, height, z_), sl::float3(-width, height, z_)};
+
+    for (const auto& kf_iter : keyframes) {
+        sl::KeyFrame keyframe = kf_iter.second;
+        sl::float3 origin(0, 0, 0);
+        origin = applyRT(origin, keyframe.pose);
+        auto clr = keyframe.is_loaded ? colorGreen : colorLime;
+        for (auto& corner : cameraCorners) {
+            _keyframes.addPoint(origin, clr);
+            _keyframes.addPoint(applyRT(corner, keyframe.pose), clr);
+        }
+
+        if (keyframe.is_loaded) {
+            _keyframes.addPoint(applyRT(cameraCorners.back(), keyframe.pose), clr);
+            _keyframes.addPoint(applyRT(cameraCorners.front(), keyframe.pose), clr);
+            for (int i = 1; i < cameraCorners.size(); i++) {
+                _keyframes.addPoint(applyRT(cameraCorners[i - 1], keyframe.pose), clr);
+                _keyframes.addPoint(applyRT(cameraCorners[i], keyframe.pose), clr);
+            }
+        }
+    }
+}
+
 void SLAMView::idle() {
     _callback();
 
     if (_landmarkMode) {
         _landmarks.pushToGPU();
+        _keyframes.pushToGPU();
     }
 
     glutPostRedisplay();
@@ -238,8 +281,7 @@ void SLAMView::display() {
 
     sl::Transform vpMatrix = _camera.getSLProjectionMatrix() * _camera.getSLViewMatrix();
 
-    glPolygonMode(GL_FRONT, GL_LINE);
-    glPolygonMode(GL_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3.f);
 
     glUseProgram(_shader.it.getProgramId());
@@ -261,11 +303,13 @@ void SLAMView::display() {
     _cameraPath.draw();
 
     if (_landmarkMode) {
-        glPointSize(3.f);
+        glPointSize(1.5f);
         _landmarks.draw();
+        glLineWidth(2.f);
+        _keyframes.draw();
     }
 
-    glPointSize(2.f);
+    glPointSize(1.f);
 
     sl::Transform transformedPose = vpMatrix * _poseTransform;
     glUniformMatrix4fv(_shader.MVPM, 1, GL_TRUE, transformedPose.m);
@@ -397,9 +441,20 @@ void SLAMView::renderPositionalTrackingStatus() {
     renderText(statusValueX, startY, font, statusColor, sl::toString(_positionalTrackingStatus.tracking_fusion_status).c_str());
 
     // Spatial memory status
-    renderText(startX, startY - verticalSpacing, font, textColor, "Spatial Memory:");
+    renderText(startX, startY - verticalSpacing, font, textColor, "Area Memory:");
 
-    statusColor = _positionalTrackingStatus.spatial_memory_status != sl::SPATIAL_MEMORY_STATUS::OFF ? colorGreen : colorRed;
+    if (_positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::OFF
+        || _positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::LOST
+        || _positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::NOT_ENOUGH_MEMORY_FOR_TRACKING) {
+        statusColor = colorRed;
+    } else if (_positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::INITIALIZING
+               || _positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::SEARCHING) {
+        statusColor = colorLime;
+    } else if (_positionalTrackingStatus.spatial_memory_status == sl::SPATIAL_MEMORY_STATUS::LOOP_CLOSED) {
+        statusColor = colorPearl;
+    } else {
+        statusColor = colorGreen;
+    }
 
     std::string spatialMemoryStatusText = sl::toString(_positionalTrackingStatus.spatial_memory_status).c_str();
 
@@ -414,12 +469,28 @@ void SLAMView::renderPositionalTrackingStatus() {
 
     renderText(statusValueX, startY - 2 * verticalSpacing, font, statusColor, odometryStatusText);
 
-    // Pose transform
-    renderText(startX, startY - 4 * verticalSpacing, font, textColor, "Translation (m):");
-    renderText(statusValueX, startY - 4 * verticalSpacing, font, textColor, formatNumericText(_poseTransform.getTranslation()));
+    // Up time
+    {
+        auto elapsed = std::chrono::steady_clock::now() - _startTime;
+        auto totalSeconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+        int hours = totalSeconds / 3600;
+        int minutes = (totalSeconds % 3600) / 60;
+        int seconds = totalSeconds % 60;
 
-    renderText(startX, startY - 5 * verticalSpacing, font, textColor, "Rotation   (rad):");
-    renderText(statusValueX, startY - 5 * verticalSpacing, font, textColor, formatNumericText(_poseTransform.getRotationVector()));
+        std::stringstream uptimeStream;
+        uptimeStream << std::setfill('0') << std::setw(2) << hours << ":" << std::setfill('0') << std::setw(2) << minutes << ":"
+                     << std::setfill('0') << std::setw(2) << seconds;
+
+        renderText(startX, startY - 4 * verticalSpacing, font, textColor, "Up Time:");
+        renderText(statusValueX, startY - 4 * verticalSpacing, font, textColor, uptimeStream.str());
+    }
+
+    // Pose transform
+    renderText(startX, startY - 6 * verticalSpacing, font, textColor, "Translation (m):");
+    renderText(statusValueX, startY - 6 * verticalSpacing, font, textColor, formatNumericText(_poseTransform.getTranslation()));
+
+    renderText(startX, startY - 7 * verticalSpacing, font, textColor, "Rotation   (rad):");
+    renderText(statusValueX, startY - 7 * verticalSpacing, font, textColor, formatNumericText(_poseTransform.getRotationVector()));
 
     // Restore matrices
     glMatrixMode(GL_PROJECTION);

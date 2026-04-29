@@ -27,6 +27,7 @@ RESET = "\033[0m"
 RED   = "\033[31m"
 GREEN = "\033[32m"
 CYAN  = "\033[36m"
+YELLOW = "\033[33m"
 
 def color_bool(val: bool) -> str:
     return f"{GREEN}true{RESET}" if bool(val) else f"{RED}false{RESET}"
@@ -55,6 +56,7 @@ Options:
   --roi <roi_filepath>        Optional. Region of interest image mask to ignore a static area
   --custom-initial-pose       Optional. Use custom initial pose (see code comments for more detail)
   --2d-ground-mode            Optional. Enable 2D ground mode
+  --export-tum                Optional. Export camera trajectory to out.tum file in TUM format
 
 Examples:
   {program_name} --map -o new_map.area
@@ -64,14 +66,16 @@ Examples:
 def sample_print(message: str, error_code = None, show_error_detail: bool = True):
     prefix = f"{CYAN}[Sample]{RESET}"
 
-    if error_code is not None and error_code != sl.ERROR_CODE.SUCCESS:
+    if error_code is not None and error_code > sl.ERROR_CODE.SUCCESS:
         err_tag = f" {RED}[Error]{RESET} "
+    elif error_code is not None and error_code < sl.ERROR_CODE.SUCCESS:
+        err_tag = f" {YELLOW}[Warning]{RESET} "
     else:
         err_tag = " "
 
     line = f"{prefix}{err_tag}{message}"
 
-    if error_code is not None and error_code != sl.ERROR_CODE.SUCCESS and show_error_detail:
+    if error_code is not None and error_code > sl.ERROR_CODE.SUCCESS and show_error_detail:
         line += f" | {error_code.name}: {str(error_code)}"
 
     print(line)
@@ -106,6 +110,9 @@ def print_args(args):
 
     if args.enable_2d_ground_mode:
         sample_print("Enabled 2D ground mode")
+
+    if args.export_tum_file:
+        sample_print("Enabled TUM trajectory export to out.tum")
 
     print()
 
@@ -211,6 +218,9 @@ def parse_args(argv, args) -> bool:
         
         elif arg == "--2d-ground-mode":
             args.enable_2d_ground_mode = True
+
+        elif arg == "--export-tum":
+            args.export_tum_file = True
 
         else:
             sample_print(f"Unrecognized or incomplete argument: {arg}", sl.ERROR_CODE.FAILURE, False)

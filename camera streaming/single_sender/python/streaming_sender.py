@@ -59,7 +59,7 @@ def main(opt):
     parse_args(init, opt)
     cam = sl.Camera()
     status = cam.open(init)
-    if status != sl.ERROR_CODE.SUCCESS: #Ensure the camera has opened succesfully
+    if status > sl.ERROR_CODE.SUCCESS: #Ensure the camera has opened succesfully
         print("Camera Open : "+repr(status)+". Exit program.")
         exit()
     runtime = sl.RuntimeParameters()
@@ -68,7 +68,7 @@ def main(opt):
     stream_params.codec = sl.STREAMING_CODEC.H265
     stream_params.bitrate = 4000
     status_streaming = cam.enable_streaming(stream_params) #Enable streaming
-    if status_streaming != sl.ERROR_CODE.SUCCESS:
+    if status_streaming > sl.ERROR_CODE.SUCCESS:
         print("Streaming initialization error: ", status_streaming)
         cam.close()
         exit()

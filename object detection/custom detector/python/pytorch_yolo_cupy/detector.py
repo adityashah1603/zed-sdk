@@ -89,8 +89,8 @@ def detections_to_custom_box(detections, original_shape, img_size):
         # Creating ingestable objects for the ZED SDK
         obj = sl.CustomBoxObjectData()
         obj.bounding_box_2d = xywh2abcd(transformed_xywh)
-        obj.label = det.cls
-        obj.probability = det.conf
+        obj.label = int(det.cls.item())
+        obj.probability = det.conf.item()
         obj.is_grounded = False
         output.append(obj)
     return output
@@ -176,7 +176,7 @@ def main(opt):
         input_type.set_from_svo_file(opt.svo)
 
     # Create a InitParameters object and set configuration parameters
-    init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=True)
+    init_params = sl.InitParameters(input_t=input_type)
     init_params.coordinate_units = sl.UNIT.METER
     init_params.depth_mode = sl.DEPTH_MODE.NEURAL
     init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
@@ -184,8 +184,7 @@ def main(opt):
 
     runtime_params = sl.RuntimeParameters()
     status = zed.open(init_params)
-
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print(repr(status))
         exit()
 

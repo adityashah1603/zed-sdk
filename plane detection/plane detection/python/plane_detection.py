@@ -39,7 +39,7 @@ def main(opt):
     zed = sl.Camera()
     # Open the camera
     status = zed.open(init)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("Camera Open : "+repr(status)+". Exit program.")
         exit()
     # Get camera info and check if IMU data is available
@@ -96,7 +96,7 @@ def main(opt):
                     find_plane_status = zed.find_floor_plane(plane, reset_tracking_floor_frame)
                     last_call = time.time()
 
-                if find_plane_status == sl.ERROR_CODE.SUCCESS:
+                if find_plane_status <= sl.ERROR_CODE.SUCCESS:
                     mesh = plane.extract_mesh()
                     viewer.update_mesh(mesh, plane.type)
 

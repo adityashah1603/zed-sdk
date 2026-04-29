@@ -46,7 +46,7 @@ def __main(opt: argparse.Namespace):
         input_type.set_from_svo_file(opt.svo)
 
     # Create a InitParameters object and set configuration parameters
-    init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=True)
+    init_params = sl.InitParameters(input_t=input_type)
     init_params.coordinate_units = sl.UNIT.METER
     init_params.depth_mode = sl.DEPTH_MODE.NEURAL
     init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
@@ -54,7 +54,7 @@ def __main(opt: argparse.Namespace):
     is_playback = opt.svo is not None and len(opt.svo) > 0 # Defines if an SVO is used
 
     status = zed.open(init_params)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print(f"Camera Open : {repr(status)}. Exit program.")
         exit()
     camera_configuration = zed.get_camera_information().camera_configuration
@@ -66,7 +66,7 @@ def __main(opt: argparse.Namespace):
     # If the camera is static in space, enabling this setting below provides better depth quality and faster computation
     # positional_tracking_parameters.set_as_static = True
     status = zed.enable_positional_tracking(positional_tracking_parameters)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print(f"Positional Tracking enable : {repr(status)}. Exit program.")
         zed.close()
         exit()
@@ -80,7 +80,7 @@ def __main(opt: argparse.Namespace):
     obj_param.enable_tracking = True
     obj_param.enable_segmentation = False  # designed to give person pixel mask using Stereolabs internal models
     status = zed.enable_object_detection(obj_param)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print(f"Object Detection enable : {repr(status)}. Exit program.")
         zed.close()
         exit()
@@ -90,16 +90,17 @@ def __main(opt: argparse.Namespace):
     detection_parameters_rt = sl.CustomObjectDetectionRuntimeParameters()
     # Default properties, apply to all object class
     detection_parameters_rt.object_detection_properties.detection_confidence_threshold = 30
+    detection_parameters_rt.object_detection_properties.velocity_smoothing_factor = 0.89
     # Specific properties, override the default properties
     props_dict = {
         1: sl.CustomObjectDetectionProperties(),
         2: sl.CustomObjectDetectionProperties()
     }
     props_dict[1].native_mapped_class = sl.OBJECT_SUBCLASS.PERSON
-    props_dict[1].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.MEDIUM
+    props_dict[1].object_tracking_parameters.object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.MEDIUM
     props_dict[1].detection_confidence_threshold = 40
     props_dict[2].detection_confidence_threshold = 50
-    props_dict[2].max_allowed_acceleration = 10 * 10
+    props_dict[2].object_tracking_parameters.velocity_smoothing_factor = 0.65
     detection_parameters_rt.object_class_detection_properties = props_dict
 
     quit_bool = False
@@ -144,7 +145,7 @@ def __main(opt: argparse.Namespace):
             break
 
         status = zed.retrieve_custom_objects(objects, detection_parameters_rt)
-        if status == sl.ERROR_CODE.SUCCESS:
+        if status <= sl.ERROR_CODE.SUCCESS:
             if not opt.disable_gui:
                 zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA, mem_type, pc_resolution)
                 zed.get_position(cam_w_pose, sl.REFERENCE_FRAME.WORLD)

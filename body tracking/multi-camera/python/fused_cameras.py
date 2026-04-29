@@ -80,19 +80,19 @@ if __name__ == "__main__":
 
             init_params.set_from_serial_number(conf.serial_number)
             status = senders[conf.serial_number].open(init_params)
-            if status != sl.ERROR_CODE.SUCCESS:
+            if status > sl.ERROR_CODE.SUCCESS:
                 print("Error opening the camera", conf.serial_number, status)
                 del senders[conf.serial_number]
                 continue
 
             status = senders[conf.serial_number].enable_positional_tracking(positional_tracking_parameters)
-            if status != sl.ERROR_CODE.SUCCESS:
+            if status > sl.ERROR_CODE.SUCCESS:
                 print("Error enabling the positional tracking of camera", conf.serial_number)
                 del senders[conf.serial_number]
                 continue
 
             status = senders[conf.serial_number].enable_body_tracking(body_tracking_parameters)
-            if status != sl.ERROR_CODE.SUCCESS:
+            if status > sl.ERROR_CODE.SUCCESS:
                 print("Error enabling the body tracking of camera", conf.serial_number)
                 del senders[conf.serial_number]
                 continue

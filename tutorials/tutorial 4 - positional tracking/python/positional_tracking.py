@@ -32,7 +32,7 @@ def main():
 
     # Open the camera
     err = zed.open(init_params)
-    if err != sl.ERROR_CODE.SUCCESS:
+    if err > sl.ERROR_CODE.SUCCESS:
         print("Camera Open : "+repr(err)+". Exit program.")
         exit()
 
@@ -41,7 +41,7 @@ def main():
     py_transform = sl.Transform()  # First create a Transform object for TrackingParameters object
     tracking_parameters = sl.PositionalTrackingParameters(_init_pos=py_transform)
     err = zed.enable_positional_tracking(tracking_parameters)
-    if err != sl.ERROR_CODE.SUCCESS:
+    if err > sl.ERROR_CODE.SUCCESS:
         print("Enable positional tracking : "+repr(err)+". Exit program.")
         zed.close()
         exit()
@@ -55,7 +55,7 @@ def main():
     
     can_compute_imu = zed.get_camera_information().camera_model != sl.MODEL.ZED
     while i < 100:
-        if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+        if zed.grab(runtime_parameters) <= sl.ERROR_CODE.SUCCESS:
             # Get the pose of the left eye of the camera with reference to the world frame
             zed.get_position(zed_pose, sl.REFERENCE_FRAME.WORLD)
             

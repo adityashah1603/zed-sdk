@@ -34,9 +34,9 @@ using namespace std;
 using namespace sl;
 
 void print(string msg_prefix, ERROR_CODE err_code = ERROR_CODE::SUCCESS, string msg_suffix = "");
-void parseArgs(int argc, char **argv, InitParameters& param);
+void parseArgs(int argc, char** argv, InitParameters& param);
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
 #ifdef _SL_JETSON_
     const bool isJetson = true;
@@ -54,19 +54,8 @@ int main(int argc, char **argv) {
 
     // Open the camera
     auto returned_state = zed.open(init_parameters);
-    if (returned_state != ERROR_CODE::SUCCESS) {
+    if (returned_state > ERROR_CODE::SUCCESS) {
         print("Open Camera", returned_state, "\nExit program.");
-        zed.close();
-        return EXIT_FAILURE;
-    }
-
-    // Enable Positional tracking (mandatory for object detection)
-    PositionalTrackingParameters positional_tracking_parameters;
-    //If the camera is static, uncomment the following line to have better performances.
-    //positional_tracking_parameters.set_as_static = true;
-    returned_state = zed.enablePositionalTracking(positional_tracking_parameters);
-    if (returned_state != ERROR_CODE::SUCCESS) {
-        print("enable Positional Tracking", returned_state, "\nExit program.");
         zed.close();
         return EXIT_FAILURE;
     }
@@ -74,10 +63,11 @@ int main(int argc, char **argv) {
     // Enable the Objects detection module
     ObjectDetectionParameters obj_det_params;
     obj_det_params.enable_tracking = true;
-    obj_det_params.detection_model = isJetson ? OBJECT_DETECTION_MODEL::MULTI_CLASS_BOX_FAST : OBJECT_DETECTION_MODEL::MULTI_CLASS_BOX_ACCURATE;
+    obj_det_params.detection_model
+        = isJetson ? OBJECT_DETECTION_MODEL::MULTI_CLASS_BOX_FAST : OBJECT_DETECTION_MODEL::MULTI_CLASS_BOX_ACCURATE;
 
     returned_state = zed.enableObjectDetection(obj_det_params);
-    if (returned_state != ERROR_CODE::SUCCESS) {
+    if (returned_state > ERROR_CODE::SUCCESS) {
         print("enable Object Detection", returned_state, "\nExit program.");
         zed.close();
         return EXIT_FAILURE;
@@ -96,7 +86,7 @@ int main(int argc, char **argv) {
     objectTracker_parameters_rt.object_class_filter = {OBJECT_CLASS::PERSON, OBJECT_CLASS::VEHICLE, OBJECT_CLASS::ANIMAL};
     // To set a specific threshold
     objectTracker_parameters_rt.object_class_detection_confidence_threshold[OBJECT_CLASS::PERSON] = detection_confidence;
-    //detection_parameters_rt.object_class_detection_confidence_threshold[OBJECT_CLASS::CAR] = detection_confidence;
+    // detection_parameters_rt.object_class_detection_confidence_threshold[OBJECT_CLASS::CAR] = detection_confidence;
 
     // Create ZED Objects filled in the main loop
     Objects objects;
@@ -113,7 +103,7 @@ int main(int argc, char **argv) {
             // Retrieve Detected Objects
             zed.retrieveObjects(objects, objectTracker_parameters_rt);
 
-            //Update rendering, image with detected object overlay
+            // Update rendering, image with detected object overlay
             viewer.updateView(image, objects);
         }
     }
@@ -129,7 +119,7 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-void parseArgs(int argc, char **argv, InitParameters& param) {
+void parseArgs(int argc, char** argv, InitParameters& param) {
     if (argc > 1 && string(argv[1]).find(".svo") != string::npos) {
         // SVO input mode
         param.input.setFromSVOFile(argv[1]);
@@ -161,6 +151,12 @@ void parseArgs(int argc, char **argv, InitParameters& param) {
         } else if (arg.find("SVGA") != string::npos) {
             param.camera_resolution = RESOLUTION::SVGA;
             cout << "[Sample] Using Camera in resolution SVGA" << endl;
+        } else if (arg.find("XVGA") != string::npos) {
+            param.camera_resolution = RESOLUTION::XVGA;
+            cout << "[Sample] Using Camera in resolution XVGA" << endl;
+        } else if (arg.find("TXGA") != string::npos) {
+            param.camera_resolution = RESOLUTION::TXGA;
+            cout << "[Sample] Using Camera in resolution TXGA" << endl;
         } else if (arg.find("VGA") != string::npos) {
             param.camera_resolution = RESOLUTION::VGA;
             cout << "[Sample] Using Camera in resolution VGA" << endl;
@@ -170,10 +166,12 @@ void parseArgs(int argc, char **argv, InitParameters& param) {
 
 void print(string msg_prefix, ERROR_CODE err_code, string msg_suffix) {
     cout << "[Sample]";
-    if (err_code != ERROR_CODE::SUCCESS)
+    if (err_code > ERROR_CODE::SUCCESS)
         cout << "[Error]";
+    else if (err_code < ERROR_CODE::SUCCESS)
+        cout << "[Warning] ";
     cout << " " << msg_prefix << " ";
-    if (err_code != ERROR_CODE::SUCCESS) {
+    if (err_code > ERROR_CODE::SUCCESS) {
         cout << " | " << toString(err_code) << " : ";
         cout << toVerbose(err_code);
     }

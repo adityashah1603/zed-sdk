@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 PROJECT(Tutos)
 
 OPTION(BUILD_CPP "Build c++ samples else c#" ON)
@@ -22,4 +22,5 @@ if(${BUILD_CPP})
 add_subdirectory("tutorial 9 - global localization/${TYPE}")
 add_subdirectory("tutorial 10 - split process/${TYPE}")
 add_subdirectory("tutorial 11 - health status/${TYPE}")
+add_subdirectory("tutorial 12 - retrieve tensor/${TYPE}")
 endif()

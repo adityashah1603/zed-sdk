@@ -1,7 +1,6 @@
 #include "ClientPublisher.hpp"
 
-ClientPublisher::ClientPublisher() {
-}
+ClientPublisher::ClientPublisher() { }
 
 ClientPublisher::~ClientPublisher() {
     zed.close();
@@ -20,7 +19,7 @@ bool ClientPublisher::open(const sl::InputType& input, Trigger* ref) {
     init_parameters.coordinate_units = sl::UNIT::METER;
     init_parameters.depth_stabilization = 30;
     auto state = zed.open(init_parameters);
-    if (state != sl::ERROR_CODE::SUCCESS) {
+    if (state > sl::ERROR_CODE::SUCCESS) {
         std::cout << "Error: " << state << std::endl;
         return false;
     }
@@ -32,7 +31,7 @@ bool ClientPublisher::open(const sl::InputType& input, Trigger* ref) {
     sl::PositionalTrackingParameters positional_tracking_parameters;
     positional_tracking_parameters.set_as_static = true;
     state = zed.enablePositionalTracking(positional_tracking_parameters);
-    if (state != sl::ERROR_CODE::SUCCESS) {
+    if (state > sl::ERROR_CODE::SUCCESS) {
         std::cout << "Error: " << state << std::endl;
         return false;
     }
@@ -86,7 +85,7 @@ bool ClientPublisher::open(const sl::InputType& input, Trigger* ref) {
     for (auto const& params : object_detection_parameters) {
         state = zed.enableObjectDetection(params.second);
         std::cout << "Enabling " << params.second.detection_model << " " << state << std::endl;
-        if (state != sl::ERROR_CODE::SUCCESS) {
+        if (state > sl::ERROR_CODE::SUCCESS) {
             std::cout << "Error: " << state << std::endl;
             return false;
         }
@@ -97,7 +96,8 @@ bool ClientPublisher::open(const sl::InputType& input, Trigger* ref) {
 
 void ClientPublisher::start() {
     if (zed.isOpened()) {
-        // the camera should stream its data so the fusion can subscribe to it to gather the detected body and others metadata needed for the process.
+        // the camera should stream its data so the fusion can subscribe to it to gather the detected body and others metadata needed for
+        // the process.
         zed.startPublishing();
         // the thread can start to process the camera grab in background
         runner = std::thread(&ClientPublisher::work, this);
@@ -122,8 +122,7 @@ void ClientPublisher::work() {
         std::unique_lock<std::mutex> lk(mtx);
         p_trigger->cv.wait(lk);
         if (p_trigger->running) {
-            if (zed.grab(rt) == sl::ERROR_CODE::SUCCESS) {
-            }
+            if (zed.grab(rt) <= sl::ERROR_CODE::SUCCESS) { }
         }
         p_trigger->states[serial] = true;
     }
@@ -136,4 +135,3 @@ void ClientPublisher::setStartSVOPosition(unsigned pos) {
 sl::Objects ClientPublisher::getObjects() const {
     return objects;
 }
-

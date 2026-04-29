@@ -46,7 +46,7 @@ init_params.coordinate_units = UNIT::METER; // Set units in meters
 
 // Open the camera
 ERROR_CODE err = zed.open(init_params);
-if (err != ERROR_CODE::SUCCESS)
+if (err > ERROR_CODE::SUCCESS)
     exit(-1);
 ```
 
@@ -58,7 +58,7 @@ The spatial mapping needs the positional tracking to be activated. Therefore, as
 ```
 sl::PositionalTrackingParameters tracking_parameters;
 err = zed.enablePositionalTracking(tracking_parameters);
-if (err != ERROR_CODE::SUCCESS)
+if (err > ERROR_CODE::SUCCESS)
     exit(-1);
 ```
 
@@ -69,7 +69,7 @@ Now that tracking is enabled, we need to enable the spatial mapping module. You 
 ```
 sl::SpatialMappingParameters mapping_parameters;
 err = zed.enableSpatialMapping(mapping_parameters);
-if (err != ERROR_CODE::SUCCESS)
+if (err > ERROR_CODE::SUCCESS)
     exit(-1);
 ```
 
@@ -88,7 +88,7 @@ In this tutorial, we grab 500 frames and then stop the loop to extract mesh.
 	int i = 0;
 	sl::Mesh mesh; // Create a mesh object
 	while (i < 500) {
-		if (zed.grab() == ERROR_CODE::SUCCESS) {
+		if (zed.grab() <= ERROR_CODE::SUCCESS) {
 			// In background, spatial mapping will use new images, depth and pose to create and update the mesh. No specific functions are required here
 			sl::SPATIAL_MAPPING_STATE mapping_state = zed.getSpatialMappingState();
 

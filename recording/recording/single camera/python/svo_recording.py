@@ -41,13 +41,13 @@ def main(opt):
     init.async_image_retrieval = False; # This parameter can be used to record SVO in camera FPS even if the grab loop is running at a lower FPS (due to compute for ex.)
 
     status = cam.open(init) 
-    if status != sl.ERROR_CODE.SUCCESS: 
+    if status > sl.ERROR_CODE.SUCCESS: 
         print("Camera Open", status, "Exit program.")
         exit(1)
         
     recording_param = sl.RecordingParameters(opt.output_svo_file, sl.SVO_COMPRESSION_MODE.H265) # Enable recording with the filename specified in argument
     err = cam.enable_recording(recording_param)
-    if err != sl.ERROR_CODE.SUCCESS:
+    if err > sl.ERROR_CODE.SUCCESS:
         print("Recording ZED : ", err)
         exit(1)
 

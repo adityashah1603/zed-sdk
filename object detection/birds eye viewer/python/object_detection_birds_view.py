@@ -54,7 +54,7 @@ def main(opt):
 
 
     status = zed.open(init_params)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("Camera Open : "+repr(status)+". Exit program.")
         exit()
      # Enable positional tracking module
@@ -82,7 +82,7 @@ def main(opt):
     camera_configuration = zed.get_camera_information().camera_configuration
 
     
-    if returned_state != sl.ERROR_CODE.SUCCESS:
+    if returned_state > sl.ERROR_CODE.SUCCESS:
         print("enable_object_detection", returned_state, "\nExit program.")
         zed.close()
         exit() 
@@ -90,12 +90,18 @@ def main(opt):
     # default detection threshold, apply to all object class
     detection_confidence = 60
     detection_parameters_rt = sl.ObjectDetectionRuntimeParameters(detection_confidence)
+    detection_parameters_rt.object_tracking_parameters.velocity_smoothing_factor = 0.5 # Object tracking global setting
     # To select a set of specific object classes:
     detection_parameters_rt.object_class_filter = [sl.OBJECT_CLASS.VEHICLE, sl.OBJECT_CLASS.PERSON]
     # To set a specific threshold
-    detection_parameters_rt.object_class_detection_confidence_threshold[sl.OBJECT_CLASS.PERSON] = detection_confidence
-    detection_parameters_rt.object_class_detection_confidence_threshold[sl.OBJECT_CLASS.VEHICLE] = detection_confidence
-
+    detection_parameters_rt.object_class_detection_confidence_threshold = {
+        sl.OBJECT_CLASS.PERSON: detection_confidence,
+        sl.OBJECT_CLASS.VEHICLE: detection_confidence
+    }
+    params_vehicle = sl.ObjectTrackingParameters()
+    params_vehicle.velocity_smoothing_factor = 0.73
+    params_vehicle.min_velocity_threshold = 0.3
+    detection_parameters_rt.object_class_tracking_parameters = {sl.OBJECT_CLASS.VEHICLE: params_vehicle}
 
     quit_bool = False
     if not opt.disable_gui:
@@ -152,7 +158,7 @@ def main(opt):
                         
                 #check if batched trajectories are available 
                 objects_batch = [] 
-                if zed.get_objects_batch(objects_batch) == sl.ERROR_CODE.SUCCESS:
+                if zed.get_objects_batch(objects_batch) <= sl.ERROR_CODE.SUCCESS:
                     if len(objects_batch)>0:
                         print("During last batch processing: ",len(id_counter)," Objets were detected: ", end=" ")
                         for it in id_counter:

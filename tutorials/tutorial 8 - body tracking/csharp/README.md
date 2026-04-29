@@ -37,7 +37,7 @@ init_params.sdkVerbose = true;
 
 // Open the camera
 ERROR_CODE err = zedCamera.Open(ref init_params);
-if (err != ERROR_CODE.SUCCESS)
+if (err > ERROR_CODE.SUCCESS)
     Environment.Exit(-1);
 ```
 
@@ -64,7 +64,7 @@ Then we can start the module, it will load the model. This operation can take a 
 ```C#
 Console.WriteLine("Object Detection: Loading Module...");
 err = zedCamera.EnableObjectDetection(ref object_detection_parameters);
-if (err != ERROR_CODE.SUCCESS)
+if (err > ERROR_CODE.SUCCESS)
     Environment.Exit(-1);
 ```
 
@@ -82,7 +82,7 @@ obj_runtime_parameters.detectionConfidenceThreshold = 40;
 // Detection output
 Objects objects = new Objects();
 
-while (zedCamera.Grab(ref runtimeParameters) == ERROR_CODE.SUCCESS){
+while (zedCamera.Grab(ref runtimeParameters) <= ERROR_CODE.SUCCESS){
 	zed_error = zedCamera.RetrieveObjects(ref objects, ref obj_runtime_parameters);
 
 	if (Convert.ToBoolean(objects.isNew)){

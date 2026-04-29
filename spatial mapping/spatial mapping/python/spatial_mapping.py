@@ -40,7 +40,7 @@ def main(opt):
     parse_args(init, opt)
     zed = sl.Camera()
     status = zed.open(init)
-    if status != sl.ERROR_CODE.SUCCESS:
+    if status > sl.ERROR_CODE.SUCCESS:
         print("Camera Open : "+repr(status)+". Exit program.")
         exit()
     
@@ -50,7 +50,7 @@ def main(opt):
     tracking_state = sl.POSITIONAL_TRACKING_STATE.OFF
     positional_tracking_parameters = sl.PositionalTrackingParameters()
     returned_state = zed.enable_positional_tracking(positional_tracking_parameters)
-    if returned_state != sl.ERROR_CODE.SUCCESS:
+    if returned_state > sl.ERROR_CODE.SUCCESS:
         print("Enable Positional Tracking : "+repr(status)+". Exit program.")
         exit()
     
@@ -97,7 +97,7 @@ def main(opt):
                     zed.request_spatial_map_async()
                     last_call = time.time()
 
-                if zed.get_spatial_map_request_status_async() == sl.ERROR_CODE.SUCCESS:
+                if zed.get_spatial_map_request_status_async() <= sl.ERROR_CODE.SUCCESS:
                     zed.retrieve_spatial_map_async(pymesh)
                     viewer.update_chunks()
 
@@ -132,7 +132,7 @@ def main(opt):
                     # Extract whole mesh
                     zed.extract_whole_spatial_map(pymesh)
 
-                    if opt.build_mesh:
+                    if opt.build_mesh and isinstance(pymesh, sl.Mesh):
                         filter_params = sl.MeshFilterParameters()
                         filter_params.set(sl.MESH_FILTER.MEDIUM) 
                         # Filter the extracted mesh

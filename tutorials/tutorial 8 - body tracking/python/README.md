@@ -30,13 +30,15 @@ init_params.sdk_verbose = 1
 
 # Open the camera
 err = zed.open(init_params)
-if err != sl.ERROR_CODE.SUCCESS:
+if err > sl.ERROR_CODE.SUCCESS:
     exit(1)
 ```
 
 ## Enable Body Tracking
 
 We will define the object detection parameters. Notice that the object tracking needs the positional tracking to be able to track the objects in the world reference frame.
+
+From SDK 5.3, if `enable_tracking=True` and positional tracking was not explicitly enabled by the user, the SDK can auto-enable an internal hidden `GEN_1` positional tracking fallback so the module still works. For higher-accuracy localization/mapping workflows (for example `GEN_3` with area memory), explicitly enable positional tracking with your desired parameters. To keep strict legacy behavior (fail instead of auto-fallback), set `ZED_SDK_DISABLE_AUTO_POSITIONAL_TRACKING=1`.
 
 ```python
 # Define the Objects detection module parameters
@@ -60,7 +62,7 @@ Then we can start the module, it will load the model. This operation can take a 
 
 ```python
 err = zed.enable_body_tracking(body_params)
-if err != sl.ERROR_CODE.SUCCESS:
+if err > sl.ERROR_CODE.SUCCESS:
     print("Enable Body Tracking : "+repr(err)+". Exit program.")
     zed.close()
     exit()
@@ -81,7 +83,7 @@ body_runtime_param.detection_confidence_threshold = 40
 
 i = 0 
     while i < 100:
-        if zed.grab() == sl.ERROR_CODE.SUCCESS:
+        if zed.grab() <= sl.ERROR_CODE.SUCCESS:
             err = zed.retrieve_bodies(bodies, body_runtime_param)
             if bodies.is_new:
                 body_array = bodies.body_list

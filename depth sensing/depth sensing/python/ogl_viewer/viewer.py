@@ -280,6 +280,7 @@ class Simple3DObject:
         self.data = sl.Mat()
         self.cuda_mapped_buffer = None
         self.use_gpu = GPU_ACCELERATION_AVAILABLE and not _is_static
+        self.currentCount = 0
 
     def add_pt(self, _pts):  # _pts [x,y,z]
         for pt in _pts:
@@ -403,6 +404,7 @@ class Simple3DObject:
 
                 # Copy data to GPU buffer (optimized GPU-to-GPU copy with continuous memory)
                 points_to_copy = min(pc_flat.shape[0], cuda_array.shape[0])
+                self.currentCount = points_to_copy
                 cuda_array[:points_to_copy] = pc_flat[:points_to_copy]
 
                 # Zero out remaining buffer if needed
@@ -420,10 +422,15 @@ class Simple3DObject:
             if pc.get_memory_type() == sl.MEM.GPU:
                 pc.update_cpu_from_gpu()
 
+            # Get actual point count (may be less than buffer capacity for voxels)
+            actual_res = pc.get_resolution()
+            actual_count = actual_res.width * actual_res.height
+            self.currentCount = min(actual_count, self.elementbufferSize)
+
             # Get CPU pointer and upload to GPU buffer
             glBindBuffer(GL_ARRAY_BUFFER, self.vboID[0])
             data_ptr = pc.get_pointer(sl.MEM.CPU)
-            buffer_size = self.elementbufferSize * self.pt_type * 4  # 4 bytes per float32
+            buffer_size = self.currentCount * self.pt_type * 4  # 4 bytes per float32
             glBufferSubData(GL_ARRAY_BUFFER, 0, buffer_size, ctypes.c_void_p(data_ptr))
             glBindBuffer(GL_ARRAY_BUFFER, 0)
 
@@ -441,7 +448,8 @@ class Simple3DObject:
         self.drawing_type = _type
 
     def draw(self):
-        if self.elementbufferSize:
+        draw_count = self.currentCount if self.currentCount > 0 else self.elementbufferSize
+        if draw_count:
             glEnableVertexAttribArray(0)
             glBindBuffer(GL_ARRAY_BUFFER, self.vboID[0])
             glVertexAttribPointer(0,self.pt_type,GL_FLOAT,GL_FALSE,0,None)
@@ -452,7 +460,7 @@ class Simple3DObject:
                 glVertexAttribPointer(1,self.clr_type,GL_FLOAT,GL_FALSE,0,None)
             
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.vboID[2])
-            glDrawElements(self.drawing_type, self.elementbufferSize, GL_UNSIGNED_INT, None)      
+            glDrawElements(self.drawing_type, draw_count, GL_UNSIGNED_INT, None)      
             
             glDisableVertexAttribArray(0)
             if self.clr_type:
@@ -479,6 +487,7 @@ class GLViewer:
         self.zedModel = Simple3DObject(True)
         self.point_cloud = Simple3DObject(False, 4)
         self.save_data = False
+        self.use_voxels = False
 
     def init(self, _argc, _argv, res): # _params = sl.CameraParameters
         glutInit(_argc, _argv)
@@ -578,8 +587,10 @@ class GLViewer:
     def keyPressedCallback(self, key, x, y):
         if ord(key) == 27:
             self.close_func()
-        if (ord(key) == 83 or ord(key) == 115):
+        if (ord(key) == 83 or ord(key) == 115):  # 's' or 'S'
             self.save_data = True
+        if (ord(key) == 86 or ord(key) == 118):  # 'v' or 'V'
+            self.use_voxels = not self.use_voxels
 
 
     def on_mouse(self,*args,**kwargs):
@@ -626,16 +637,16 @@ class GLViewer:
             vert=self.camera.vertical_
             tmp = vert.get()
             vert.init_vector(tmp[0] * 1.,tmp[1] * 1., tmp[2] * 1.)
-            r.init_angle_translation(self.mouseMotion[0] * 0.02, vert)
+            r.init_angle_translation(self.mouseMotion[0] * 0.03, vert)
             self.camera.rotate(r)
 
-            r.init_angle_translation(self.mouseMotion[1] * 0.02, self.camera.right_)
+            r.init_angle_translation(self.mouseMotion[1] * 0.03, self.camera.right_)
             self.camera.rotate(r)
 
         if(self.mouse_button[1]):
             t = sl.Translation()
             tmp = self.camera.right_.get()
-            scale = self.mouseMotion[0] *-0.05
+            scale = self.mouseMotion[0] * 0.05
             t.init_vector(tmp[0] * scale, tmp[1] * scale, tmp[2] * scale)
             self.camera.translate(t)
 
@@ -647,7 +658,7 @@ class GLViewer:
         if (self.wheelPosition != 0):
             t = sl.Translation()
             tmp = self.camera.forward_.get()
-            scale = self.wheelPosition * -0.065
+            scale = self.wheelPosition * -0.5
             t.init_vector(tmp[0] * scale, tmp[1] * scale, tmp[2] * scale)
             self.camera.translate(t)
 
@@ -666,7 +677,7 @@ class GLViewer:
 
         glUseProgram(self.shader_pc.get_program_id())
         glUniformMatrix4fv(self.shader_pc_MVP, 1, GL_TRUE,  (GLfloat * len(vpMatrix))(*vpMatrix))
-        glPointSize(1.)
+        glPointSize(2. if self.use_voxels else 1.)
         self.point_cloud.draw()
         glUseProgram(0)
         

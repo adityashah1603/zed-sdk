@@ -29,13 +29,15 @@ init_params.sdk_verbose = 1
 
 # Open the camera
 err = zed.open(init_params)
-if err != sl.ERROR_CODE.SUCCESS:
+if err > sl.ERROR_CODE.SUCCESS:
     exit(1)
 ```
 
 ## Enable Object detection
 
 We will define the object detection parameters. Notice that the object tracking needs the positional tracking to be able to track the objects in the world reference frame.
+
+From SDK 5.3, if `enable_tracking=true` and positional tracking was not explicitly enabled by the user, the SDK can auto-enable an internal `GEN_1` positional tracking fallback so the module still works. For higher-accuracy localization/mapping workflows (for example `GEN_3` with area memory), explicitly enable positional tracking with your desired parameters.
 
 ```python
 # Define the Objects detection module parameters
@@ -53,7 +55,7 @@ Then we can start the module, it will load the model. This operation can take a 
 
 ```python
 err = zed.enable_object_detection(obj_param)
-if err != sl.ERROR_CODE.SUCCESS :
+if err > sl.ERROR_CODE.SUCCESS :
     print (repr(err))
     zed.close()
     exit(1)
@@ -73,7 +75,7 @@ obj_runtime_param = sl.ObjectDetectionRuntimeParameters()
 obj_runtime_param.detection_confidence_threshold = 40
 zed.set_object_detection_runtime_parameters(obj_runtime_param) # can be set at any time
 
-while zed.grab() == sl.ERROR_CODE.SUCCESS:
+while zed.grab() <= sl.ERROR_CODE.SUCCESS:
     zed_error = zed.retrieve_objects(objects)
     if objects.is_new :
         print(str(len(objects.object_list))+" Object(s) detected ("+str(zed.get_current_fps())+" FPS)")

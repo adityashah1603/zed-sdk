@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include "sl/Camera.hpp"
 #include "GLCamera.hpp"
@@ -50,6 +51,7 @@ public:
     void updatePoseTransform(sl::Transform transform);
     void updatePositionalTrackingStatus(sl::PositionalTrackingStatus positionalTrackingStatus);
     void updateLandmarks(std::map<uint64_t, sl::Landmark>& landmarks);
+    void updateKeyframes(const std::map<uint64_t, sl::KeyFrame>& keyframes);
 
 private:
     int _width;
@@ -66,6 +68,8 @@ private:
     bool _pointCloudMode;
     bool _landmarkMode;
     bool _followMode;
+
+    std::chrono::steady_clock::time_point _startTime;
 
     void idle();
     void display();
@@ -88,6 +92,8 @@ private:
     Simple3DPath _cameraPath;
     PointCloud _pointCloud;
     Simple3DObject _landmarks;
+    Simple3DObject _keyframes;
+
     CUstream _cudaStream;
 
     GLuint _frameTextureID;
